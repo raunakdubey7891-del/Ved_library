@@ -10,6 +10,7 @@ const LIBRARY_LAT       = 28.6139;
 const LIBRARY_LON       = 77.2090;
 const LIBRARY_RADIUS_KM = 0.5;
 
+
 /* ── Supabase client ─────────────────────────────────────────────────────── */
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
@@ -222,7 +223,7 @@ async function loadAdminData() {
   renderAll();
   db.channel('admin-rt')
     .on('postgres_changes', { event:'*', schema:'public', table:'users'      }, async () => { await fetchStudents();   renderAll(); })
-    .on('postgres_changes', { event:'*', schema:'public', table:'seats'      }, async () => { await fetchSeats();      renderAll(); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'seats'      }, async () => { await Promise.all([fetchSeats(), fetchStudents()]); renderAll(); })
     .on('postgres_changes', { event:'*', schema:'public', table:'payments'   }, async () => { await fetchPayments();   renderAll(); })
     .on('postgres_changes', { event:'*', schema:'public', table:'attendance' }, async () => { await fetchAttendance(); renderAll(); })
     .on('postgres_changes', { event:'*', schema:'public', table:'notices'    }, async () => { await fetchNotices();    renderAll(); })
@@ -281,7 +282,12 @@ function renderSeats() {
   grid.innerHTML = filtered.map(seat => {
     const student = allStudents.find(s => s.uid === seat.occupied_by);
     const isOcc   = seat.status === 'occupied';
-    const opts    = allStudents.filter(s => !s.seat_number).map(s => `<option value="${s.uid}">${s.name}</option>`).join('');
+    // Students who are truly unassigned = seat_number is blank OR their seat isn't in the occupied list
+    const occupiedByUids = allSeats.filter(s => s.status === 'occupied').map(s => s.occupied_by);
+    const opts = allStudents
+      .filter(s => !occupiedByUids.includes(s.uid))
+      .map(s => `<option value="${s.uid}">${s.name}</option>`)
+      .join('');
     return `
       <div class="seat-card ${isOcc ? 'seat-occupied' : 'seat-available'}">
         <div class="seat-card-header">
@@ -439,14 +445,34 @@ async function saveStudentEdit() {
   const uid          = $('edit-uid').value;
   const sessionStart = $('edit-session-start').value;
   const expiryDate   = $('edit-expiry').value;
+  const newSeatNum   = $('edit-seat').value.trim();
+  const oldStudent   = allStudents.find(s => s.uid === uid);
 
   await db.from('users').update({
-    seat_number:   $('edit-seat').value,
+    seat_number:   newSeatNum || null,
     plan_id:       $('edit-plan').value,
     session_start: sessionStart || null,
     expiry_date:   expiryDate   || null,
     amount_due:    parseInt($('edit-amount-due').value) || 0,
   }).eq('uid', uid);
+
+  // If seat number changed, update seat records accordingly
+  if (oldStudent && oldStudent.seat_number !== newSeatNum) {
+    // Free the old seat
+    if (oldStudent.seat_number) {
+      const oldSeat = allSeats.find(s => s.number === oldStudent.seat_number);
+      if (oldSeat) await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', oldSeat.id);
+    }
+    // Mark new seat as occupied
+    if (newSeatNum) {
+      const newSeat = allSeats.find(s => s.number === newSeatNum);
+      if (newSeat) {
+        const plan = $('edit-plan').value;
+        await db.from('seats').update({ status: 'occupied', occupied_by: uid, plan_type: STUDY_PLANS[plan] || 'N/A' }).eq('id', newSeat.id);
+      }
+    }
+  }
+
   closeModal('edit-student-modal');
 }
 
@@ -461,6 +487,10 @@ async function addSeat() {
 async function toggleSeat(id, currentStatus, occupiedBy) {
   const newStatus = currentStatus === 'available' ? 'occupied' : 'available';
   await db.from('seats').update({ status: newStatus, occupied_by: newStatus === 'available' ? null : occupiedBy }).eq('id', id);
+  // If freeing the seat, also clear the student's seat_number so they appear in dropdowns
+  if (newStatus === 'available' && occupiedBy) {
+    await db.from('users').update({ seat_number: null }).eq('uid', occupiedBy);
+  }
 }
 async function assignSeat(seatId, studentUid) {
   const student = allStudents.find(s => s.uid === studentUid);
@@ -473,6 +503,11 @@ async function assignSeat(seatId, studentUid) {
 }
 async function removeSeat(id) {
   if (!confirm('Delete this seat?')) return;
+  // Clear the student's seat_number if this seat was occupied
+  const seat = allSeats.find(s => s.id === id);
+  if (seat?.occupied_by) {
+    await db.from('users').update({ seat_number: null }).eq('uid', seat.occupied_by);
+  }
   await db.from('seats').delete().eq('id', id);
 }
 
