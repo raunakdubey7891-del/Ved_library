@@ -238,9 +238,11 @@
           <div class="section-sub">Manage Ved Library operations and data.</div>
         </div>
         <div class="admin-actions">
-          <button class="btn btn-ghost btn-sm" onclick="exportCSV('students')">⬇ Export Students</button>
-          <button class="btn btn-ghost btn-sm" onclick="exportCSV('attendance')">⬇ Export Attendance</button>
-          <button class="btn btn-primary btn-sm" onclick="downloadAllDocs()">📦 Download All Docs</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV('students')">⬇ Students CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV('attendance')">⬇ Attendance CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV('payments')">⬇ Payments CSV</button>
+          <button class="btn btn-ghost btn-sm" id="download-docs-btn" onclick="downloadAllDocs()">📁 Download All Docs</button>
+          <button class="btn btn-primary btn-sm" id="export-all-btn" onclick="exportAllData()">📦 Export All Data</button>
         </div>
       </div>
 
@@ -264,7 +266,7 @@
             <table class="table">
               <thead>
                 <tr>
-                  <th>Student</th><th>Seat</th><th>Plan</th><th>Expiry</th><th>Due</th><th class="text-right">Actions</th>
+                  <th>Student</th><th>Seat</th><th>Plan</th><th>Expiry</th><th>Due</th><th>Session Start</th><th class="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody id="students-tbody"></tbody>
@@ -329,6 +331,14 @@
           <div class="stat-box stat-slate">
             <div class="stat-label">Seats Available</div>
             <div class="stat-value" id="stat-available">0</div>
+          </div>
+          <div class="stat-box stat-emerald" style="grid-column:span 2">
+            <div class="stat-label">Total Verified Revenue</div>
+            <div class="stat-value" id="stat-revenue">₹0</div>
+          </div>
+          <div class="stat-box stat-amber" style="grid-column:span 2">
+            <div class="stat-label">Total Amount Due from Students</div>
+            <div class="stat-value" id="stat-pending-due">₹0</div>
           </div>
         </div>
       </div>
@@ -406,7 +416,11 @@
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Expiry Date</label>
+      <label class="form-label">📅 Session Start Date <span style="font-size:11px;color:#64748b;font-weight:400">(expiry auto-sets to +30 days, amount auto-fills)</span></label>
+      <input class="form-input" type="date" id="edit-session-start" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Expiry Date <span style="font-size:11px;color:#64748b;font-weight:400">(auto-calculated)</span></label>
       <input class="form-input" type="date" id="edit-expiry" />
     </div>
     <div class="form-group">
