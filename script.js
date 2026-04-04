@@ -6,6 +6,10 @@
 const SUPABASE_URL  = 'https://dmolzoagnzjwtrdroqeg.supabase.co';       // e.g. https://xxxx.supabase.co
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtb2x6b2Fnbnpqd3RyZHJvcWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODUxODEsImV4cCI6MjA5MDg2MTE4MX0.5Culb-inMvITeplysy6_BJJXngd_SPMWG13_hT0GV5w';  // starts with eyJ...
 const ADMIN_EMAIL   = 'raunakdubey7891@gmail.com';
+NEXT_PUBLIC_SUPABASE_URL='https://dmolzoagnzjwtrdroqeg.supabase.co'; 
+NEXT_PUBLIC_SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtb2x6b2Fnbnpqd3RyZHJvcWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODUxODEsImV4cCI6MjA5MDg2MTE4MX0.5Culb-inMvITeplysy6_BJJXngd_SPMWG13_hT0GV5w';
+GOOGLE_CLIENT_ID= '968064831709-ek3kmqkg9eog142s8a7rp63mj68o8qv7.apps.googleusercontent.com'
+GOOGLE_CLIENT_SECRET='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'
 
 /* ── Library GPS for attendance verification ─────────────────────────────── */
 const LIBRARY_LAT       = 26.46141163972251;  // ← change to your library's latitude
