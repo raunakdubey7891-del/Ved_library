@@ -768,11 +768,20 @@ img { display: block; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .dash-grid-3 { grid-template-columns: 1fr 1fr; }
-  .seat-grid   { grid-template-columns: repeat(2, 1fr); }
-  .auth-container { grid-template-columns: 1fr; }
-  .auth-left   { display: none; }
+  .dash-grid-3    { grid-template-columns: 1fr 1fr; }
+  .seat-grid      { grid-template-columns: repeat(2, 1fr); }
+
+  /* On tablet/mobile: stack auth vertically, show compact header */
+  .auth-container { grid-template-columns: 1fr; gap: 0; }
+  .auth-left      { display: block; text-align: center; margin-bottom: 28px; }
+  .auth-left .auth-brand { justify-content: center; }
+  .auth-left h1   { font-size: 26px; }
+  .auth-tagline   { display: none; }
+  .auth-features  { display: none; }
+  .auth-card      { padding: 32px 24px; border-radius: 20px; }
+  #auth-page      { padding: 48px 20px; align-items: flex-start; }
 }
+
 @media (max-width: 600px) {
   .dash-grid-3  { grid-template-columns: 1fr; }
   .seat-grid    { grid-template-columns: repeat(2, 1fr); }
@@ -780,6 +789,26 @@ img { display: block; }
   .modal-grid-2 { grid-template-columns: 1fr; }
   #main-content { padding: 20px 16px; }
   #navbar       { padding: 0 16px; }
-  .auth-features{ grid-template-columns: 1fr; }
   .stats-grid   { grid-template-columns: 1fr 1fr; }
+
+  /* Mobile login page */
+  #auth-page    { padding: 40px 16px; }
+  .auth-left h1 { font-size: 22px; }
+  .auth-card    { padding: 28px 20px; }
+  .auth-card h2 { font-size: 20px; }
+  .google-btn   { padding: 12px; font-size: 14px; }
+
+  /* Hide name in navbar on very small screens */
+  .nav-name     { display: none; }
+
+  /* Smaller QR on mobile */
+  .qr-img       { width: 150px; height: 150px; }
+
+  /* Admin tabs scroll horizontally */
+  .tabs         { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+  .tab-btn      { white-space: nowrap; }
+
+  /* Admin action buttons full width */
+  .admin-actions       { width: 100%; }
+  .admin-actions .btn  { flex: 1; font-size: 12px; padding: 8px 10px; }
 }
