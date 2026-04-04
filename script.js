@@ -146,14 +146,27 @@ async function logout() {
   location.reload();
 }
 
-/** Google OAuth sign-in button */
+// In script.js — replace the existing google-login-btn onclick
 $('google-login-btn').onclick = async () => {
-  $('google-btn-text').textContent = 'Connecting...';
-  $('google-login-btn').disabled = true;
-  await db.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.origin },
-  });
+  const btnText = $('google-btn-text');
+  const btn = $('google-login-btn');
+  
+  btnText.textContent = 'Connecting...';
+  btn.disabled = true;
+
+  try {
+    await db.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin   // This returns http://localhost:3000 (clean)
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    btnText.textContent = 'Continue with Google';
+    btn.disabled = false;
+    alert('Login failed. Please try again.');
+  }
 };
 
 /* ══════════════════════════════════════════
