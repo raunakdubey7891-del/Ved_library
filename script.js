@@ -20,6 +20,14 @@ const LIBRARY_RADIUS_KM = 0.05;      // 50 metres radius
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
 
+const handleHashFragment = () => {
+  if (window.location.hash) {
+    // Keep the hash fragment for Supabase to process
+    console.log('Hash detected, Supabase will handle it');
+  }
+};
+
+handleHashFragment();
 /* ── App state ───────────────────────────────────────────────────────────── */
 let currentUser    = null;
 let currentProfile = null;
