@@ -146,7 +146,6 @@ async function logout() {
   location.reload();
 }
 
-// In script.js — replace the existing google-login-btn onclick
 $('google-login-btn').onclick = async () => {
   const btnText = $('google-btn-text');
   const btn = $('google-login-btn');
@@ -158,14 +157,14 @@ $('google-login-btn').onclick = async () => {
     await db.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin   // This returns http://localhost:3000 (clean)
+        redirectTo: window.location.origin   // This automatically uses Vercel URL in production
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error('OAuth Error:', err);
     btnText.textContent = 'Continue with Google';
     btn.disabled = false;
-    alert('Login failed. Please try again.');
+    alert('Login failed. Please check console (F12) and Supabase settings.');
   }
 };
 
