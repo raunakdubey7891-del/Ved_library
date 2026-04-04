@@ -10,7 +10,6 @@ const LIBRARY_LAT       = 28.6139;
 const LIBRARY_LON       = 77.2090;
 const LIBRARY_RADIUS_KM = 0.5;
 
-
 /* ── Supabase client ─────────────────────────────────────────────────────── */
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON);
