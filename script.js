@@ -12,7 +12,13 @@ const LIBRARY_RADIUS_KM = 0.5;
 
 /* ── Supabase client ─────────────────────────────────────────────────────── */
 const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON);
+const db = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    detectSessionInUrl: true,   // picks up access_token from URL hash after OAuth redirect
+    persistSession: true,       // keeps user logged in on page reload
+    autoRefreshToken: true,
+  }
+});
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let currentUser    = null;
@@ -53,21 +59,31 @@ function addDays(dateStr, days) {
    AUTH
 ══════════════════════════════════════════ */
 async function init() {
+  // Handle OAuth redirect — Supabase puts the token in the URL hash
+  // We must let onAuthStateChange fire FIRST before checking getSession
+  db.auth.onAuthStateChange(async (event, session) => {
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user && !currentUser) {
+      hide('loading-screen');
+      hide('auth-page');
+      await onSignIn(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; currentProfile = null;
+      hide('app'); hide('reg-page');
+      hide('loading-screen');
+      show('auth-page');
+    }
+  });
+
+  // Also check for an existing session (e.g. page reload while logged in)
   const { data: { session } } = await db.auth.getSession();
   if (session?.user) {
     await onSignIn(session.user);
-  } else {
+  } else if (!window.location.hash.includes('access_token')) {
+    // No session and no OAuth redirect in progress — show login
     hide('loading-screen');
     show('auth-page');
   }
-  db.auth.onAuthStateChange(async (_event, session) => {
-    if (session?.user && !currentUser) {
-      await onSignIn(session.user);
-    } else if (!session) {
-      currentUser = null; currentProfile = null;
-      hide('app'); hide('reg-page'); show('auth-page');
-    }
-  });
+  // If URL has access_token, onAuthStateChange above will handle it — just wait
 }
 
 async function onSignIn(user) {
@@ -90,7 +106,9 @@ async function logout() { await db.auth.signOut(); location.reload(); }
 $('google-login-btn').onclick = async () => {
   $('google-btn-text').textContent = 'Connecting...';
   $('google-login-btn').disabled = true;
-  await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
+  // Use clean origin URL without any hash — prevents redirect loops
+  const redirectTo = window.location.origin + window.location.pathname;
+  await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
 };
 
 /* ══════════════════════════════════════════
