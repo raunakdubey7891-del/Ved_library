@@ -152,7 +152,7 @@ $('google-login-btn').onclick = async () => {
   $('google-login-btn').disabled = true;
   await db.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.href },
+    options: { redirectTo: window.location.origin },
   });
 };
 
