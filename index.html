@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ved Library</title>
+
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     LOADING SCREEN
+═══════════════════════════════════════════ -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     AUTH PAGE
+═══════════════════════════════════════════ -->
+<div id="auth-page" class="hidden">
+  <div class="auth-container">
+    <!-- Left branding -->
+    <div class="auth-left">
+      <div class="auth-brand">
+        <div class="nav-logo">V</div>
+        <span class="auth-brand-name">Ved Library</span>
+      </div>
+      <h1>Focus on your <span>Future</span>,<br>we'll manage the rest.</h1>
+      <p class="auth-tagline">The ultimate library seat management system for serious aspirants. Book your spot, track attendance, and stay updated.</p>
+      <div class="auth-features">
+        <div class="card feature-card">
+          <div class="feature-title">🔒 Secure Access</div>
+          <div class="feature-desc">Authenticated login for every student.</div>
+        </div>
+        <div class="card feature-card">
+          <div class="feature-title">💺 Smart Seats</div>
+          <div class="feature-desc">Real-time seat mapping and shifts.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right login card -->
+    <div class="auth-card">
+      <h2>Get Started</h2>
+      <p class="auth-sub">Sign in with your Google account to access your dashboard.</p>
+      <button class="google-btn" id="google-login-btn">
+        <img src="https://www.google.com/favicon.ico" alt="Google" />
+        <span id="google-btn-text">Continue with Google</span>
+      </button>
+      <div class="auth-note">
+        📚 New students will be automatically registered. Contact admin for seat allotment after first login.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     REGISTRATION PAGE
+═══════════════════════════════════════════ -->
+<div id="reg-page" class="hidden">
+  <div class="reg-card">
+    <div class="reg-header">
+      <h2>🛡️ Complete Your Registration</h2>
+      <p>Welcome to Ved Library. Please fill in your details to continue.</p>
+    </div>
+    <div class="reg-body">
+      <div id="reg-error" class="alert alert-error hidden"></div>
+
+      <div class="reg-grid-2">
+        <div class="form-group">
+          <label class="form-label">📞 Phone Number</label>
+          <input class="form-input" type="tel" id="reg-phone" placeholder="Enter phone number" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">💳 Aadhaar Number</label>
+          <input class="form-input" type="text" id="reg-aadhaar" placeholder="12-digit Aadhaar" maxlength="12" />
+        </div>
+      </div>
+
+      <div class="reg-grid-2" style="margin-bottom:20px">
+        <!-- Photo upload -->
+        <div>
+          <div class="form-label upload-label">
+            👤 Profile Photo
+            <span class="badge-required">REQUIRED</span>
+          </div>
+          <div class="upload-area" id="photo-upload-area" onclick="document.getElementById('photo-input').click()">
+            <div id="photo-placeholder">📷<br><span class="upload-hint">Upload Photo (max 300KB)</span></div>
+            <img id="photo-preview" class="hidden" alt="Profile preview" />
+            <button class="remove-img hidden" id="remove-photo" onclick="removeFile(event,'photo')">✕</button>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'photo')" />
+        </div>
+
+        <!-- Aadhaar upload -->
+        <div>
+          <div class="form-label upload-label">
+            📄 Aadhaar Card Photo
+            <span class="badge-required">REQUIRED</span>
+          </div>
+          <div class="upload-area" id="aadhaar-upload-area" onclick="document.getElementById('aadhaar-input').click()">
+            <div id="aadhaar-placeholder">🪪<br><span class="upload-hint">Upload Aadhaar (max 300KB)</span></div>
+            <img id="aadhaar-preview" class="hidden" alt="Aadhaar preview" />
+            <button class="remove-img hidden" id="remove-aadhaar" onclick="removeFile(event,'aadhaar')">✕</button>
+          </div>
+          <input type="file" id="aadhaar-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'aadhaar')" />
+        </div>
+      </div>
+
+      <!-- Rules -->
+      <div class="rules-box">
+        <div class="rules-title">📋 Library Rules & Regulations</div>
+        <div class="rule-item"><span class="rule-dot">•</span>No disturbance allowed in the library premises.</div>
+        <div class="rule-item"><span class="rule-dot">•</span>Mobile phones must be kept on silent mode at all times.</div>
+        <div class="rule-item"><span class="rule-dot">•</span>Receive calls only at the terrace or outside the library.</div>
+        <div class="rule-item"><span class="rule-dot">•</span>No group study allowed inside the study area.</div>
+        <div class="rule-item"><span class="rule-dot">•</span>Maintain absolute silence for focused study.</div>
+      </div>
+
+      <label class="agree-label">
+        <input type="checkbox" id="reg-agree" class="agree-checkbox" />
+        <span>I have read and agree to follow all the library rules. Violation may lead to cancellation of membership.</span>
+      </label>
+
+      <button class="btn btn-primary w-full reg-submit-btn" id="reg-submit-btn" onclick="submitRegistration()">
+        Complete Registration
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- Navbar -->
+  <nav id="navbar">
+    <div class="nav-brand">
+      <div class="nav-logo">V</div>
+      <span class="nav-title">Ved Library</span>
+    </div>
+    <div class="nav-user">
+      <span class="nav-name" id="nav-user-name"></span>
+      <span class="badge" id="nav-user-role"></span>
+      <button class="btn-logout" onclick="logout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div id="main-content">
+
+    <!-- ── STUDENT DASHBOARD ── -->
+    <div id="student-dashboard" class="hidden">
+      <div class="dash-header">
+        <div>
+          <div class="section-title" id="student-welcome">Welcome back!</div>
+          <div class="section-sub">Your study journey continues today at Ved Library.</div>
+        </div>
+        <div class="attend-status-pill">
+          <span class="status-dot" id="attend-status-dot"></span>
+          <span id="attend-status-text"></span>
+        </div>
+      </div>
+
+      <div id="student-location-error" class="alert alert-error hidden"></div>
+
+      <div class="dash-grid-3" style="margin-bottom:24px">
+
+        <!-- Seat card -->
+        <div class="card">
+          <div class="card-title">💺 Your Allotted Seat</div>
+          <div class="seat-info-row">
+            <div>
+              <div class="seat-big-num" id="student-seat-num">N/A</div>
+              <div class="seat-plan-name" id="student-plan-name">No plan selected</div>
+            </div>
+            <div class="seat-icon-box">⏱️</div>
+          </div>
+          <div class="card-divider">
+            <button class="btn btn-primary w-full" id="mark-attend-btn" onclick="markAttendance()">
+              Mark Today's Attendance
+            </button>
+            <div class="attend-note">Requires location access to verify presence.</div>
+          </div>
+        </div>
+
+        <!-- Subscription card -->
+        <div class="card">
+          <div class="card-title">📅 Subscription</div>
+          <div class="subs-row">
+            <div>
+              <div class="subs-label">Days Remaining</div>
+              <div class="subs-days" id="days-remaining">0 Days</div>
+            </div>
+            <div class="subs-right">
+              <div class="subs-label">Next Month In</div>
+              <div class="subs-next" id="days-next-month">— Days</div>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="subscription-progress" style="width:0%"></div>
+          </div>
+          <div class="expiry-text" id="expiry-text">Expiry: N/A</div>
+        </div>
+
+        <!-- Payment card -->
+        <div class="card">
+          <div class="card-title">💳 Payment Dues</div>
+          <div class="due-label">Amount to Pay</div>
+          <div class="due-amount" id="amount-due">₹0</div>
+          <div class="due-date" id="due-date-text"></div>
+          <button class="btn btn-success w-full" onclick="showPaymentModal()">
+            📱 Pay Now (UPI)
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Student notices -->
+      <div class="card-title">🔔 Library Notices</div>
+      <div id="student-notices-list">
+        <div class="empty-text">No notices at the moment.</div>
+      </div>
+    </div>
+    <!-- /student-dashboard -->
+
+    <!-- ── ADMIN DASHBOARD ── -->
+    <div id="admin-dashboard" class="hidden">
+      <div class="dash-header">
+        <div>
+          <div class="section-title">Admin Control Panel</div>
+          <div class="section-sub">Manage Ved Library operations and data.</div>
+        </div>
+        <div class="admin-actions">
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV('students')">⬇ Export Students</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportCSV('attendance')">⬇ Export Attendance</button>
+          <button class="btn btn-primary btn-sm" onclick="downloadAllDocs()">📦 Download All Docs</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab(event,'students')">👥 Students</button>
+        <button class="tab-btn" onclick="switchTab(event,'seats')">💺 Seats</button>
+        <button class="tab-btn" onclick="switchTab(event,'payments')">💳 Payments</button>
+        <button class="tab-btn" onclick="switchTab(event,'attendance')">📅 Attendance</button>
+        <button class="tab-btn" onclick="switchTab(event,'notices')">🔔 Notices</button>
+        <button class="tab-btn" onclick="switchTab(event,'stats')">📊 Stats</button>
+      </div>
+
+      <!-- Students tab -->
+      <div id="tab-students" class="tab-content active">
+        <div style="margin-bottom:16px">
+          <input class="form-input" id="student-search" placeholder="🔍  Search by name, email or seat..." oninput="renderStudentTable()" style="max-width:360px" />
+        </div>
+        <div class="card">
+          <div class="overflow-x-auto">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Student</th><th>Seat</th><th>Plan</th><th>Expiry</th><th>Due</th><th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="students-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seats tab -->
+      <div id="tab-seats" class="tab-content">
+        <div class="seats-toolbar">
+          <select class="form-input form-select seat-filter-select" id="seat-filter" onchange="renderSeats()">
+            <option value="all">All Seats</option>
+            <option value="available">Available</option>
+            <option value="occupied">Occupied</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="showAddSeatModal()">+ Add Seat</button>
+        </div>
+        <div class="seat-grid" id="seats-grid"></div>
+      </div>
+
+      <!-- Payments tab -->
+      <div id="tab-payments" class="tab-content">
+        <div class="card">
+          <div class="card-title">Pending Payment Requests</div>
+          <div id="payments-list"><div class="empty-text">No pending requests.</div></div>
+        </div>
+      </div>
+
+      <!-- Attendance tab -->
+      <div id="tab-attendance" class="tab-content">
+        <div class="card">
+          <div class="card-title">Recent Attendance</div>
+          <div id="attendance-list" class="attend-scroll"></div>
+        </div>
+      </div>
+
+      <!-- Notices tab -->
+      <div id="tab-notices" class="tab-content">
+        <div class="notices-toolbar">
+          <div class="card-title" style="margin:0">Library Notices</div>
+          <button class="btn btn-primary btn-sm" onclick="showAddNoticeModal()">+ Post Notice</button>
+        </div>
+        <div id="admin-notices-list"></div>
+      </div>
+
+      <!-- Stats tab -->
+      <div id="tab-stats" class="tab-content">
+        <div class="stats-grid">
+          <div class="stat-box stat-indigo">
+            <div class="stat-label">Total Students</div>
+            <div class="stat-value" id="stat-students">0</div>
+          </div>
+          <div class="stat-box stat-emerald">
+            <div class="stat-label">Active Today</div>
+            <div class="stat-value" id="stat-today">0</div>
+          </div>
+          <div class="stat-box stat-amber">
+            <div class="stat-label">Seats Occupied</div>
+            <div class="stat-value" id="stat-occupied">0</div>
+          </div>
+          <div class="stat-box stat-slate">
+            <div class="stat-label">Seats Available</div>
+            <div class="stat-value" id="stat-available">0</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- /admin-dashboard -->
+
+  </div><!-- /main-content -->
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════ -->
+
+<!-- Payment modal -->
+<div class="overlay hidden" id="payment-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Scan & Pay</h3>
+      <button class="close-btn" onclick="closeModal('payment-modal')">✕</button>
+    </div>
+    <p class="modal-sub" id="payment-modal-desc"></p>
+    <div class="qr-wrap">
+      <img id="payment-qr" src="" alt="UPI QR Code" class="qr-img" />
+    </div>
+    <div class="upi-id-label">UPI ID</div>
+    <div class="upi-id-value">raunakdubey7891@ybl</div>
+    <a id="payment-upi-link" href="#" class="btn btn-primary w-full open-bank-btn">🔗 Open Banking App</a>
+    <hr class="modal-divider" />
+    <div class="form-group">
+      <label class="form-label">Transaction ID / UTR Number</label>
+      <input class="form-input utr-input" type="text" id="utr-input" placeholder="Enter 12-digit UTR number" />
+    </div>
+    <button class="btn btn-primary w-full" id="submit-payment-btn" onclick="submitPayment()">
+      Submit Payment Details
+    </button>
+  </div>
+</div>
+
+<!-- Edit student modal -->
+<div class="overlay hidden" id="edit-student-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Edit Student Data</h3>
+      <button class="close-btn" onclick="closeModal('edit-student-modal')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Student Name</label>
+      <input class="form-input" id="edit-name" disabled />
+    </div>
+    <div class="modal-grid-2">
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" id="edit-phone" disabled />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Aadhaar</label>
+        <input class="form-input" id="edit-aadhaar-view" disabled />
+      </div>
+    </div>
+    <div class="modal-grid-2">
+      <div class="form-group">
+        <label class="form-label">Seat Number</label>
+        <input class="form-input" id="edit-seat" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Plan</label>
+        <select class="form-input form-select" id="edit-plan">
+          <option value="">Select Plan</option>
+          <option value="full_time">Full Time (12 Hours) - ₹1200</option>
+          <option value="shift_a">Shift A (4 Hours) - ₹500</option>
+          <option value="shift_b">Shift B (4 Hours) - ₹500</option>
+          <option value="custom">Custom Shift - ₹800</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Expiry Date</label>
+      <input class="form-input" type="date" id="edit-expiry" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Amount Due (₹)</label>
+      <input class="form-input" type="number" id="edit-amount-due" />
+    </div>
+    <input type="hidden" id="edit-uid" />
+    <button class="btn btn-primary w-full" onclick="saveStudentEdit()">Save Changes</button>
+  </div>
+</div>
+
+<!-- Add seat modal -->
+<div class="overlay hidden" id="add-seat-modal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>Add New Seat</h3>
+      <button class="close-btn" onclick="closeModal('add-seat-modal')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Seat Number</label>
+      <input class="form-input" id="new-seat-num" placeholder="e.g. A1, 15, B3" />
+    </div>
+    <button class="btn btn-primary w-full" onclick="addSeat()">Add Seat</button>
+  </div>
+</div>
+
+<!-- Add notice modal -->
+<div class="overlay hidden" id="add-notice-modal">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h3>Post New Notice</h3>
+      <button class="close-btn" onclick="closeModal('add-notice-modal')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="notice-title-input" placeholder="Important Update..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Content</label>
+      <textarea class="form-input form-textarea" id="notice-content-input" rows="5" placeholder="Write notice details here..."></textarea>
+    </div>
+    <button class="btn btn-primary w-full" onclick="addNotice()">Publish Notice</button>
+  </div>
+</div>
+
+<!-- Script -->
+<script src="script.js"></script>
+</body>
+</html>
