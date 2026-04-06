@@ -9,6 +9,149 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link rel="stylesheet" href="style.css"/>
+<style>
+  /* Fix for file input styling - hide native input */
+  .hidden-input {
+    display: none !important;
+  }
+  .ul-box {
+    cursor: pointer;
+  }
+  .ul-box.has-file {
+    border-color: var(--ac);
+    border-style: solid;
+  }
+  .contact-admin-btn {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 20px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6ee7b7;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+  .contact-admin-btn:hover {
+    background: rgba(16, 185, 129, 0.25);
+    transform: scale(1.02);
+  }
+  @media (max-width: 640px) {
+    .topbar-brand .brand-name {
+      display: inline-block !important;
+      font-size: 14px;
+    }
+    .auth-brand .brand-name {
+      display: inline-block !important;
+    }
+    .brand-mark.sm {
+      width: 28px;
+      height: 28px;
+      font-size: 12px;
+    }
+    .topbar-brand {
+      gap: 6px;
+    }
+  }
+  .seat-card {
+    background: var(--bg2);
+    border: 1px solid var(--bd);
+    border-radius: var(--r2);
+    padding: 14px;
+    transition: all 0.2s;
+  }
+  .seat-card.seat-occupied {
+    border-color: var(--ac);
+    background: rgba(99, 102, 241, 0.05);
+  }
+  .seat-card.seat-available {
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .seat-number {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .seat-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-block;
+  }
+  .status-occupied {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+  }
+  .status-available {
+    background: rgba(16, 185, 129, 0.15);
+    color: #6ee7b7;
+  }
+  .seat-student {
+    font-size: 12px;
+    font-weight: 500;
+    margin-top: 8px;
+    color: var(--ac3);
+  }
+  .seat-plan-badge {
+    font-size: 10px;
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 4px;
+  }
+  .s-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .s-sel {
+    background: var(--bg3);
+    border: 1px solid var(--bd);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: var(--t1);
+    cursor: pointer;
+    flex: 1;
+  }
+  .btn-icon {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border-radius: 6px !important;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-icon:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    transform: scale(1.05);
+  }
+  .btn-verify {
+    background: rgba(16, 185, 129, 0.2) !important;
+    color: #6ee7b7 !important;
+  }
+  .btn-reject {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #fca5a5 !important;
+  }
+  .pdf-name {
+    font-size: 11px;
+    color: var(--ac3);
+    margin-top: 4px;
+    text-align: center;
+    word-break: break-all;
+  }
+</style>
 </head>
 <body>
 
@@ -43,7 +186,7 @@
   </div>
 </div>
 
-<!-- ══ REGISTRATION ═══════════════════════ -->
+<!-- ══ REGISTRATION PAGE ═══════════════════════ -->
 <div id="reg-page" class="hidden">
   <div class="page-center">
     <div class="reg-card">
@@ -54,31 +197,49 @@
       </div>
       <div class="reg-body">
         <div id="reg-error" class="err-msg hidden"></div>
+        
         <div class="f-row">
-          <div class="fg"><label>Phone Number</label><input id="reg-phone" type="tel" placeholder="Enter phone number"/></div>
-          <div class="fg"><label>Aadhaar Number</label><input id="reg-aadhaar" type="text" placeholder="12-digit number" maxlength="12"/></div>
+          <div class="fg">
+            <label>Phone Number</label>
+            <input id="reg-phone" type="tel" placeholder="Enter phone number"/>
+          </div>
+          <div class="fg">
+            <label>Aadhaar Number</label>
+            <input id="reg-aadhaar" type="text" placeholder="12-digit number" maxlength="12"/>
+          </div>
         </div>
+        
         <div class="f-row">
+          <!-- Profile Photo Upload -->
           <div>
             <label class="ul-lbl">Profile Photo<span class="req-tag">Required · Max 100KB</span></label>
             <div class="ul-box" id="photo-upload-area" onclick="document.getElementById('photo-input').click()">
-              <div id="photo-placeholder"><span class="ul-emoji">📷</span><span class="ul-hint">Click to upload · max 100KB</span></div>
-              <img id="photo-preview" class="hidden" alt=""/>
-              <button class="ul-rm hidden" id="remove-photo" onclick="removeFile(event,'photo')">×</button>
+              <div id="photo-placeholder">
+                <span class="ul-emoji">📷</span>
+                <span class="ul-hint">Click to upload · max 100KB</span>
+              </div>
+              <img id="photo-preview" class="hidden" style="width:100%; height:100%; object-fit:cover; border-radius:10px;" alt=""/>
+              <button type="button" class="ul-rm hidden" id="remove-photo" onclick="removeFile(event,'photo')">×</button>
             </div>
-            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'photo',100)"/>
+            <input type="file" id="photo-input" accept="image/jpeg,image/png,image/jpg" class="hidden" onchange="handleFileUpload(this,'photo',100)"/>
           </div>
+          
+          <!-- Aadhaar Document Upload -->
           <div>
             <label class="ul-lbl">Aadhaar Document<span class="req-tag">Required · PDF/Image · Max 100KB</span></label>
             <div class="ul-box" id="aadhaar-upload-area" onclick="document.getElementById('aadhaar-input').click()">
-              <div id="aadhaar-placeholder"><span class="ul-emoji">📄</span><span class="ul-hint">PDF or Image · max 100KB</span></div>
-              <img id="aadhaar-preview" class="hidden" alt=""/>
-              <div id="aadhaar-pdf-name" class="hidden" style="font-size:11px; margin-top:4px;"></div>
-              <button class="ul-rm hidden" id="remove-aadhaar" onclick="removeFile(event,'aadhaar')">×</button>
+              <div id="aadhaar-placeholder">
+                <span class="ul-emoji">📄</span>
+                <span class="ul-hint">PDF or Image · max 100KB</span>
+              </div>
+              <img id="aadhaar-preview" class="hidden" style="width:100%; height:100%; object-fit:cover; border-radius:10px;" alt=""/>
+              <div id="aadhaar-pdf-name" class="pdf-name hidden"></div>
+              <button type="button" class="ul-rm hidden" id="remove-aadhaar" onclick="removeFile(event,'aadhaar')">×</button>
             </div>
-            <input type="file" id="aadhaar-input" accept="image/*,.pdf" class="hidden" onchange="handleFileUpload(this,'aadhaar',100)"/>
+            <input type="file" id="aadhaar-input" accept="image/jpeg,image/png,image/jpg,application/pdf" class="hidden" onchange="handleFileUpload(this,'aadhaar',100)"/>
           </div>
         </div>
+        
         <div class="rules-panel">
           <p class="rules-title">Library Rules</p>
           <ul class="rules-list">
@@ -89,10 +250,12 @@
             <li>Maintain silence for focused study</li>
           </ul>
         </div>
+        
         <label class="agree-row">
           <input type="checkbox" id="reg-agree"/>
           <span>I agree to follow all library rules and regulations</span>
         </label>
+        
         <button class="btn btn-primary btn-full" id="reg-submit-btn" onclick="submitRegistration()">Complete Registration</button>
       </div>
     </div>
@@ -123,7 +286,6 @@
 
     <!-- ── STUDENT VIEW ──────────────────── -->
     <div id="student-dashboard" class="hidden">
-
       <div class="page-header">
         <div>
           <h1 id="student-welcome" class="page-title">Welcome back</h1>
@@ -138,8 +300,6 @@
       <div id="student-location-error" class="err-msg hidden" style="margin-bottom:16px"></div>
 
       <div class="s-grid">
-
-        <!-- Seat card -->
         <div class="card">
           <p class="card-label">Your Seat</p>
           <div class="seat-display">
@@ -151,7 +311,6 @@
           <p class="field-hint">Requires GPS to verify you're at the library</p>
         </div>
 
-        <!-- Subscription card -->
         <div class="card">
           <p class="card-label">Subscription</p>
           <div class="subs-nums">
@@ -162,7 +321,6 @@
           <p class="field-hint" id="expiry-text">Expiry: Not set</p>
         </div>
 
-        <!-- Payment card -->
         <div class="card">
           <p class="card-label">Amount Due</p>
           <p class="due-big" id="amount-due">₹0</p>
@@ -170,18 +328,14 @@
           <div class="divider"></div>
           <button class="btn btn-accent btn-full" onclick="showPaymentModal()">Pay via UPI</button>
         </div>
-
       </div>
 
-      <!-- Notices -->
       <div class="section-head"><h2 class="section-title">Notices</h2></div>
       <div id="student-notices-list"><p class="empty-text">No notices at the moment</p></div>
-
-    </div><!-- /student -->
+    </div>
 
     <!-- ── ADMIN VIEW ─────────────────────── -->
     <div id="admin-dashboard" class="hidden">
-
       <div class="page-header">
         <div><h1 class="page-title">Admin Panel</h1><p class="page-sub">Manage students, seats and operations</p></div>
         <div class="action-row">
@@ -202,7 +356,6 @@
         <button class="tab" onclick="switchTab(event,'stats')">Stats</button>
       </div>
 
-      <!-- Students -->
       <div id="tab-students" class="tab-pane active">
         <div class="search-row"><input class="search-inp" id="student-search" placeholder="Search name, email or seat…" oninput="renderStudentTable()"/></div>
         <div class="card no-pad">
@@ -215,7 +368,6 @@
         </div>
       </div>
 
-      <!-- Seats -->
       <div id="tab-seats" class="tab-pane">
         <div class="toolbar">
           <select class="sel" id="seat-filter" onchange="renderSeats()">
@@ -228,23 +380,19 @@
         <div class="seat-grid" id="seats-grid"></div>
       </div>
 
-      <!-- Payments -->
       <div id="tab-payments" class="tab-pane">
         <div class="card"><div id="payments-list"><p class="empty-text">Loading…</p></div></div>
       </div>
 
-      <!-- Attendance -->
       <div id="tab-attendance" class="tab-pane">
         <div class="card"><p class="card-label" style="margin-bottom:16px">Recent Attendance</p><div id="attendance-list" class="scroll-list"><p class="empty-text">No records yet</p></div></div>
       </div>
 
-      <!-- Notices -->
       <div id="tab-notices" class="tab-pane">
         <div class="section-head"><h2 class="section-title">Notices</h2><button class="btn btn-primary btn-sm" onclick="showAddNoticeModal()">+ Post</button></div>
         <div id="admin-notices-list"></div>
       </div>
 
-      <!-- Stats -->
       <div id="tab-stats" class="tab-pane">
         <div class="stats-grid">
           <div class="stat-card"><p class="stat-lbl">Total Students</p><p class="stat-val" id="stat-students">0</p></div>
@@ -255,14 +403,11 @@
           <div class="stat-card span2"><p class="stat-lbl">Total Amount Due</p><p class="stat-val red" id="stat-pending-due">₹0</p></div>
         </div>
       </div>
-
-    </div><!-- /admin -->
+    </div>
   </main>
-</div><!-- /app -->
+</div>
 
 <!-- ══ MODALS ══════════════════════════════ -->
-
-<!-- Payment -->
 <div class="overlay hidden" id="payment-modal">
   <div class="modal">
     <div class="modal-hd"><h3>Pay via UPI</h3><button class="close-x" onclick="closeModal('payment-modal')">×</button></div>
@@ -276,7 +421,6 @@
   </div>
 </div>
 
-<!-- Edit student -->
 <div class="overlay hidden" id="edit-student-modal">
   <div class="modal">
     <div class="modal-hd"><h3>Edit Student</h3><button class="close-x" onclick="closeModal('edit-student-modal')">×</button></div>
@@ -297,7 +441,7 @@
         </select>
       </div>
     </div>
-    <div class="fg"><label>Session Start <span class="field-hint" style="display:inline">— expiry auto-sets to +30 days</span></label><input type="date" id="edit-session-start"/></div>
+    <div class="fg"><label>Session Start</label><input type="date" id="edit-session-start"/></div>
     <div class="fg"><label>Expiry Date</label><input type="date" id="edit-expiry"/></div>
     <div class="fg"><label>Amount Due (₹)</label><input type="number" id="edit-amount-due"/></div>
     <input type="hidden" id="edit-uid"/>
@@ -306,7 +450,6 @@
   </div>
 </div>
 
-<!-- Add seat -->
 <div class="overlay hidden" id="add-seat-modal">
   <div class="modal modal-sm">
     <div class="modal-hd"><h3>Add Seat</h3><button class="close-x" onclick="closeModal('add-seat-modal')">×</button></div>
@@ -315,7 +458,6 @@
   </div>
 </div>
 
-<!-- Add notice -->
 <div class="overlay hidden" id="add-notice-modal">
   <div class="modal">
     <div class="modal-hd"><h3>Post Notice</h3><button class="close-x" onclick="closeModal('add-notice-modal')">×</button></div>
