@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   VED LIBRARY — script.js  (v2.1 - FIXED REFRESH)
+   VED LIBRARY — script.js  (v2.1 - FIXED)
 ═══════════════════════════════════════ */
 
 /* ── CONFIG ─────────────────────────── */
@@ -62,16 +62,14 @@ const safeSet = (id,val) => { const el=$(id); if(el) el.textContent=val; };
 const esc     = s   => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /* ═══════════════════════════════════════
-   AUTH — Fixed refresh issue for Vercel
+   AUTH — Fixed refresh issue
 ═══════════════════════════════════════ */
 async function init() {
-  // Show loading screen, hide everything else
   show('loading-screen');
   hide('auth-page');
   hide('app');
   hide('reg-page');
 
-  // Handle URL errors first
   if (window.location.search.includes('error')) {
     history.replaceState(null, '', window.location.pathname);
     hide('loading-screen');
@@ -80,17 +78,11 @@ async function init() {
   }
 
   try {
-    // CRITICAL FIX: Directly check for existing session FIRST
-    // This is faster and more reliable than waiting for onAuthStateChange
     const { data: { session }, error } = await db.auth.getSession();
-
     if (error) throw error;
-
     if (session?.user) {
-      // User is already logged in (e.g., after a refresh)
       await onSignIn(session.user);
     } else {
-      // No user found, show the login page
       hide('loading-screen');
       show('auth-page');
     }
@@ -100,12 +92,10 @@ async function init() {
     show('auth-page');
   }
 
-  // Set up listener for future auth changes (login/logout in other tabs)
   db.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
       await onSignIn(session.user);
     } else if (event === 'SIGNED_OUT') {
-      // Reset state and show login page
       currentUser = null;
       currentProfile = null;
       initDone = false;
@@ -121,7 +111,6 @@ async function init() {
 }
 
 async function onSignIn(user) {
-  // Prevent double-init
   if (initDone && currentUser?.id === user.id) return;
 
   try {
@@ -226,7 +215,6 @@ async function loadStudentData() {
     allNotices = notices || [];
     renderNoticeList('student-notices-list', false);
 
-    // Realtime for student
     db.channel('student-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `uid=eq.${currentUser.id}` }, async () => {
         try { const { data } = await db.from('attendance').select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle(); updateAttendanceUI(!!data); } catch (e) {}
@@ -347,7 +335,7 @@ function renderStudentTable() {
   const list = allStudents.filter(s => !q || s.name?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) || s.seat_number?.toLowerCase().includes(q));
   const tbody = $('students-tbody');
   if (!tbody) return;
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-size:13px">No students found.</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:32px;font-size:13px">No students found.审理</tr>'; return; }
   tbody.innerHTML = list.map(s => {
     const isExp = s.expiry_date && new Date(s.expiry_date) < new Date();
     return `<tr>
@@ -374,21 +362,23 @@ function renderSeats() {
   if (!list.length) { grid.innerHTML = '<div class="empty-text">No seats.</div>'; return; }
   const occupiedUids = allSeats.filter(s => s.status === 'occupied').map(s => s.occupied_by);
   const freeStudents = allStudents.filter(s => !occupiedUids.includes(s.uid));
+  
   grid.innerHTML = list.map(seat => {
     const student = allStudents.find(s => s.uid === seat.occupied_by);
     const isOcc = seat.status === 'occupied';
-    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)}</option>`).join('');
+    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)} (${esc(s.seat_number || 'No seat')})</option>`).join('');
     return `<div class="seat-card ${isOcc ? 'seat-occupied' : 'seat-available'}">
       <div class="s-card-top">
         <span class="seat-num ${isOcc ? 'seat-num-occupied' : 'seat-num-available'}">${esc(seat.number)}</span>
         <div class="s-actions">
-          <button class="btn btn-icon ${isOcc ? 'btn-reject' : 'btn-verify'}" title="${isOcc ? 'Free' : 'Occupy'}" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">${isOcc ? '✕' : '✓'}</button>
-          <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete">🗑</button>
+          ${!isOcc ? 
+            `<select class="s-sel" onchange="assignSeat('${seat.id}',this.value)"><option value="" disabled selected>Assign Student</option>${opts}</select>` :
+            `<button class="btn btn-icon btn-reject" title="Free seat" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">✕</button>`
+          }
+          <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete Seat">🗑</button>
         </div>
       </div>
-      ${isOcc
-        ? `<div class="s-student">${esc(student?.name || 'Assigned')}</div><div class="s-plan">${esc(seat.plan_type || '—')}</div>`
-        : `<select class="s-sel" onchange="assignSeat('${seat.id}',this.value)"><option value="" disabled selected>Assign Student</option>${opts}</select>`}
+      ${isOcc ? `<div class="s-student">👤 ${esc(student?.name || 'Assigned')}</div><div class="s-plan">${esc(seat.plan_type || '—')}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -467,6 +457,8 @@ async function verifyPayment(id, status, uid) {
   try {
     await db.from('payments').update({ status }).eq('id', id);
     if (status === 'verified') await db.from('users').update({ amount_due: 0 }).eq('uid', uid);
+    await Promise.all([fetchPayments(), fetchStudents()]);
+    renderAll();
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -485,7 +477,6 @@ function openEditModal(uid) {
   show('edit-student-modal');
 }
 
-// Auto-fill expiry and amount when session start changes
 const sessionInput = $('edit-session-start');
 if (sessionInput) sessionInput.addEventListener('change', function() {
   if (!this.value) return;
@@ -515,8 +506,10 @@ async function saveStudentEdit() {
 
     if (oldStudent && oldStudent.seat_number !== newSeatNum) {
       if (oldStudent.seat_number) { const old = allSeats.find(s => s.number === oldStudent.seat_number); if (old) await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', old.id); }
-      if (newSeatNum) { const nw = allSeats.find(s => s.number === newSeatNum); if (nw) await db.from('seats').update({ status: 'occupied', occupied_by: uid, plan_type: STUDY_PLANS[$('edit-plan')?.value] || 'N/A' }).eq('id', nw.id); }
+      if (newSeatNum) { const nw = allSeats.find(s => s.number === newSeatNum); if (nw && nw.status === 'available') { await db.from('seats').update({ status: 'occupied', occupied_by: uid, plan_type: STUDY_PLANS[$('edit-plan')?.value] || 'N/A' }).eq('id', nw.id); } else if (newSeatNum) { alert(`Seat ${newSeatNum} is not available or doesn't exist.`); } }
     }
+    await Promise.all([fetchStudents(), fetchSeats()]);
+    renderAll();
     closeModal('edit-student-modal');
   } catch (e) { alert('Save failed: ' + e.message); }
 }
@@ -533,6 +526,8 @@ async function deleteStudent() {
     await db.from('attendance').delete().eq('uid', uid);
     await db.from('payments').delete().eq('uid', uid);
     await db.from('users').delete().eq('uid', uid);
+    await Promise.all([fetchStudents(), fetchSeats(), fetchPayments(), fetchAttendance()]);
+    renderAll();
     closeModal('edit-student-modal');
     alert(`${s.name} has been removed.`);
   } catch (e) {
@@ -548,34 +543,99 @@ async function addSeat() {
   try {
     const num = ($('new-seat-num')?.value || '').trim();
     if (!num) return;
-    await db.from('seats').insert({ id: `seat_${num}`, number: num, status: 'available' });
+    const existing = allSeats.find(s => s.number === num);
+    if (existing) { alert(`Seat ${num} already exists!`); return; }
+    await db.from('seats').insert({ id: `seat_${Date.now()}`, number: num, status: 'available' });
+    await fetchSeats();
+    renderSeats();
     closeModal('add-seat-modal');
   } catch (e) { alert('Failed: ' + e.message); }
 }
+
 async function toggleSeat(id, currentStatus, occupiedBy) {
   try {
-    const newStatus = currentStatus === 'available' ? 'occupied' : 'available';
-    await db.from('seats').update({ status: newStatus, occupied_by: newStatus === 'available' ? null : occupiedBy }).eq('id', id);
-    if (newStatus === 'available' && occupiedBy) await db.from('users').update({ seat_number: null }).eq('uid', occupiedBy);
+    const seat = allSeats.find(s => s.id === id);
+    if (!seat) { alert('Seat not found'); return; }
+    
+    if (currentStatus === 'available') {
+      alert('Please use the dropdown to select a student for this seat');
+      return;
+    } else {
+      if (!confirm(`Free seat ${seat.number}? The student will lose their seat assignment.`)) return;
+      await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', id);
+      if (occupiedBy) { await db.from('users').update({ seat_number: null }).eq('uid', occupiedBy); }
+    }
+    await Promise.all([fetchSeats(), fetchStudents()]);
+    renderSeats();
+    renderStudentTable();
   } catch (e) { alert('Failed: ' + e.message); }
 }
+
 async function assignSeat(seatId, studentUid) {
   try {
+    if (!seatId || !studentUid) {
+      alert('Invalid seat or student selection');
+      return;
+    }
+    
     const student = allStudents.find(s => s.uid === studentUid);
     const seat = allSeats.find(s => s.id === seatId);
-    if (!student || !seat) return;
-    await db.from('seats').update({ status: 'occupied', occupied_by: studentUid, plan_type: STUDY_PLANS[student.plan_id] || 'N/A' }).eq('id', seatId);
-    await db.from('users').update({ seat_number: seat.number }).eq('uid', studentUid);
+    
+    if (!student || !seat) {
+      alert('Student or seat not found');
+      return;
+    }
+    
+    if (seat.status !== 'available') {
+      alert(`Seat ${seat.number} is already occupied. Please select an available seat.`);
+      return;
+    }
+    
+    if (!seat.number || seat.number.trim() === '') {
+      alert('Invalid seat configuration. Please add a valid seat first.');
+      return;
+    }
+    
+    await db.from('seats').update({ 
+      status: 'occupied', 
+      occupied_by: studentUid, 
+      plan_type: STUDY_PLANS[student.plan_id] || 'N/A' 
+    }).eq('id', seatId);
+    
+    await db.from('users').update({ 
+      seat_number: seat.number 
+    }).eq('uid', studentUid);
+    
     const prev = allSeats.find(s => s.number === student.seat_number && s.id !== seatId);
-    if (prev) await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', prev.id);
-  } catch (e) { alert('Failed: ' + e.message); }
+    if (prev) {
+      await db.from('seats').update({ 
+        status: 'available', 
+        occupied_by: null, 
+        plan_type: null 
+      }).eq('id', prev.id);
+    }
+    
+    await Promise.all([fetchSeats(), fetchStudents()]);
+    renderSeats();
+    renderStudentTable();
+    
+  } catch (e) { 
+    console.error('Assign seat error:', e);
+    alert('Failed to assign seat: ' + e.message); 
+  }
 }
+
 async function removeSeat(id) {
   if (!confirm('Delete this seat?')) return;
   try {
     const seat = allSeats.find(s => s.id === id);
-    if (seat?.occupied_by) await db.from('users').update({ seat_number: null }).eq('uid', seat.occupied_by);
+    if (seat?.occupied_by) {
+      await db.from('users').update({ seat_number: null }).eq('uid', seat.occupied_by);
+    }
     await db.from('seats').delete().eq('id', id);
+    await Promise.all([fetchSeats(), fetchStudents()]);
+    renderSeats();
+    renderStudentTable();
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
@@ -587,12 +647,20 @@ async function addNotice() {
     const content = ($('notice-content-input')?.value || '').trim();
     if (!title || !content) return;
     await db.from('notices').insert({ title, content, created_at: new Date().toISOString(), author_id: currentUser.id });
+    await fetchNotices();
+    renderNoticeList('admin-notices-list', true);
+    renderNoticeList('student-notices-list', false);
     closeModal('add-notice-modal');
   } catch (e) { alert('Failed: ' + e.message); }
 }
 async function deleteNotice(id) {
   if (!confirm('Delete this notice?')) return;
-  try { await db.from('notices').delete().eq('id', id); } catch (e) { alert('Failed: ' + e.message); }
+  try { 
+    await db.from('notices').delete().eq('id', id);
+    await fetchNotices();
+    renderNoticeList('admin-notices-list', true);
+    renderNoticeList('student-notices-list', false);
+  } catch (e) { alert('Failed: ' + e.message); }
 }
 
 /* ── Tab switching ────────────────────── */
