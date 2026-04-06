@@ -167,7 +167,7 @@ $('google-login-btn').onclick = async () => {
 ═══════════════════════════════════════ */
 function launchApp() {
   show('app');
-  safeSet('nav-user-name', currentProfile.name);
+  safeSet('nav-user-name', currentProfile.name); safeSet('brand-name-text', 'Ved Library');
   const roleEl = $('nav-user-role');
   if (roleEl) {
     roleEl.textContent = currentProfile.role === 'admin' ? 'Admin' : 'Student';
@@ -209,7 +209,11 @@ async function loadStudentData() {
     safeSet('days-next-month', Math.floor((nextMonth - new Date()) / 86400000) + ' Days');
 
     const { data: todayAttend } = await db.from('attendance').select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle();
-    updateAttendanceUI(!!todayAttend);
+    updateAttendanceUI(todayAttend ? todayAttend.status : null);
+
+    // Auto-mark absent if plan is active today and student hasn't marked attendance
+    // This runs at end of day check — if current time is after 9pm and no attendance, mark absent
+    await checkAndMarkAbsent();
 
     const { data: notices } = await db.from('notices').select('*').order('created_at', { ascending: false });
     allNotices = notices || [];
@@ -229,20 +233,27 @@ async function loadStudentData() {
   } catch (e) { console.error('loadStudentData error:', e); }
 }
 
-function updateAttendanceUI(marked) {
+function updateAttendanceUI(status) {
   try {
     const dot = $('attend-status-dot'), text = $('attend-status-text'), btn = $('mark-attend-btn');
     if (!dot || !text || !btn) return;
-    if (marked) {
+    if (status === 'present') {
       dot.className = 'status-dot dot-green';
-      text.textContent = 'Marked';
-      btn.textContent = '✓ Attendance Done';
+      text.textContent = 'Present Today';
+      btn.textContent = '✓ Attendance Marked';
       btn.disabled = true;
       btn.className = 'btn w-full';
       btn.style.cssText = 'background:rgba(16,185,129,.1);color:#6ee7b7;cursor:default;width:100%;justify-content:center;padding:10px;border-radius:8px;font-weight:600;display:flex;align-items:center;border:1px solid rgba(16,185,129,.15)';
+    } else if (status === 'absent') {
+      dot.className = 'status-dot dot-red';
+      text.textContent = 'Marked Absent';
+      btn.textContent = '✗ Absent Today';
+      btn.disabled = true;
+      btn.className = 'btn w-full';
+      btn.style.cssText = 'background:rgba(239,68,68,.1);color:#fca5a5;cursor:default;width:100%;justify-content:center;padding:10px;border-radius:8px;font-weight:600;display:flex;align-items:center;border:1px solid rgba(239,68,68,.15)';
     } else {
       dot.className = 'status-dot dot-amber';
-      text.textContent = 'Pending';
+      text.textContent = 'Not Marked Yet';
       btn.textContent = "Mark Today's Attendance";
       btn.disabled = false;
       btn.className = 'btn btn-primary w-full';
@@ -251,12 +262,44 @@ function updateAttendanceUI(marked) {
   } catch (e) {}
 }
 
+// Check if student should be marked absent (plan active + past 9pm + no attendance)
+async function checkAndMarkAbsent() {
+  try {
+    if (!currentProfile?.plan_id || !currentProfile?.session_start || !currentProfile?.expiry_date) return;
+
+    const now = new Date();
+    const hour = now.getHours();
+    // Only auto-mark absent after 9 PM
+    if (hour < 21) return;
+
+    const sessionStart = new Date(currentProfile.session_start);
+    const expiryDate   = new Date(currentProfile.expiry_date);
+    // Only if today is within session range
+    if (now < sessionStart || now > expiryDate) return;
+
+    // Check if attendance already exists today
+    const { data: existing } = await db.from('attendance')
+      .select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle();
+    if (existing) return; // already marked
+
+    // Mark as absent
+    await db.from('attendance').upsert({
+      id: `${currentUser.id}_${today()}`,
+      uid: currentUser.id,
+      date: today(),
+      timestamp: new Date().toISOString(),
+      status: 'absent'
+    });
+  } catch (e) { console.error('Auto-absent check failed:', e); }
+}
+
 async function markAttendance() {
   hide('student-location-error');
   try {
     const loc = await getLocation();
     if (!isAtLibrary(loc.lat, loc.lon)) { showErr('student-location-error', 'You must be at the library to mark attendance.'); return; }
     await db.from('attendance').upsert({ id: `${currentUser.id}_${today()}`, uid: currentUser.id, date: today(), timestamp: new Date().toISOString(), status: 'present' });
+    updateAttendanceUI('present');
   } catch (e) { showErr('student-location-error', e.message || 'Location error. Please allow location access.'); }
 }
 
@@ -363,22 +406,33 @@ function renderSeats() {
   const occupiedUids = allSeats.filter(s => s.status === 'occupied').map(s => s.occupied_by);
   const freeStudents = allStudents.filter(s => !occupiedUids.includes(s.uid));
   
+  const PLAN_COLORS = {
+    'Full Time (12h)': 'plan-fulltime',
+    'Shift A (4h)':    'plan-shifta',
+    'Shift B (4h)':    'plan-shiftb',
+    'Custom Shift':    'plan-custom',
+    'N/A': ''
+  };
   grid.innerHTML = list.map(seat => {
     const student = allStudents.find(s => s.uid === seat.occupied_by);
     const isOcc = seat.status === 'occupied';
-    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)} (${esc(s.seat_number || 'No seat')})</option>`).join('');
-    return `<div class="seat-card ${isOcc ? 'seat-occupied' : 'seat-available'}">
+    const planClass = PLAN_COLORS[seat.plan_type] || '';
+    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)} — ${esc(STUDY_PLANS[s.plan_id]||'No plan')}</option>`).join('');
+    return `<div class="s-card ${isOcc ? 'occ ' + planClass : ''}">
       <div class="s-card-top">
-        <span class="seat-num ${isOcc ? 'seat-num-occupied' : 'seat-num-available'}">${esc(seat.number)}</span>
+        <span class="s-num ${isOcc ? 'occ' : 'free'}">${esc(seat.number)}</span>
         <div class="s-actions">
-          ${!isOcc ? 
-            `<select class="s-sel" onchange="assignSeat('${seat.id}',this.value)"><option value="" disabled selected>Assign Student</option>${opts}</select>` :
-            `<button class="btn btn-icon btn-reject" title="Free seat" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">✕</button>`
-          }
-          <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete Seat">🗑</button>
+          <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete">🗑</button>
+          ${isOcc ? `<button class="btn btn-icon btn-no" title="Free seat" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">✕</button>` : ''}
         </div>
       </div>
-      ${isOcc ? `<div class="s-student">👤 ${esc(student?.name || 'Assigned')}</div><div class="s-plan">${esc(seat.plan_type || '—')}</div>` : ''}
+      ${isOcc
+        ? `<div class="s-student">${esc(student?.name || 'Assigned')}</div>
+           <div class="s-plan-badge ${planClass}-badge">${esc(seat.plan_type || '—')}</div>`
+        : `<div class="s-empty">Unassigned</div>
+           <select class="s-sel" onchange="assignSeat('${seat.id}',this.value)">
+             <option value="" disabled selected>Assign student…</option>${opts}
+           </select>`}
     </div>`;
   }).join('');
 }
@@ -419,10 +473,11 @@ function renderAttendanceList() {
   if (!allAttendance.length) { el.innerHTML = '<div class="empty-text">No records yet.</div>'; return; }
   el.innerHTML = allAttendance.map(a => {
     const s = allStudents.find(x => x.uid === a.uid);
+    const isAbsent = a.status === 'absent';
     return `<div class="att-item">
-      <div class="att-av">${esc((s?.name || '?').charAt(0))}</div>
+      <div class="att-av" style="${isAbsent ? 'background:rgba(239,68,68,.15);color:#fca5a5' : ''}">${esc((s?.name || '?').charAt(0))}</div>
       <div style="flex:1"><div class="att-name">${esc(s?.name || 'Unknown')}</div><div class="att-time">${fmtTime(a.timestamp)}</div></div>
-      <span class="att-tick">✓</span>
+      <span class="${isAbsent ? 'att-abs' : 'att-tick'}">${isAbsent ? '✗' : '✓'}</span>
     </div>`;
   }).join('');
 }
@@ -780,12 +835,33 @@ function downloadBase64(dataUrl, filename) { const a = document.createElement('a
 function handleFileUpload(input, type) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 300 * 1024) { alert('File too large. Max 300KB.'); return; }
+
+  // Validate type
+  if (type === 'photo') {
+    if (!file.type.startsWith('image/')) { alert('Please upload an image file for Profile Photo.'); input.value=''; return; }
+  } else {
+    if (file.type !== 'application/pdf') { alert('Please upload a PDF file for Aadhaar document.'); input.value=''; return; }
+  }
+
+  // Max 100KB
+  if (file.size > 100 * 1024) { alert('File too large. Maximum size is 100KB. Please compress and try again.'); input.value=''; return; }
+
   const reader = new FileReader();
   reader.onloadend = () => {
     const b64 = reader.result;
-    if (type === 'photo') { photoBase64 = b64; const p = $('photo-preview'); if (p) { p.src = b64; } show('photo-preview'); hide('photo-placeholder'); show('remove-photo'); $('photo-upload-area')?.classList.add('has-file'); }
-    else { aadhaarBase64 = b64; const p = $('aadhaar-preview'); if (p) { p.src = b64; } show('aadhaar-preview'); hide('aadhaar-placeholder'); show('remove-aadhaar'); $('aadhaar-upload-area')?.classList.add('has-file'); }
+    if (type === 'photo') {
+      photoBase64 = b64;
+      const p = $('photo-preview'); if (p) { p.src = b64; }
+      show('photo-preview'); hide('photo-placeholder'); show('remove-photo');
+      $('photo-upload-area')?.classList.add('has-file');
+    } else {
+      aadhaarBase64 = b64;
+      // Show PDF icon instead of image preview
+      const ph = $('aadhaar-placeholder');
+      if (ph) ph.innerHTML = '<span class="ul-emoji">📄</span><span class="ul-hint" style="color:#6ee7b7">✓ ' + file.name + '</span>';
+      show('remove-aadhaar');
+      $('aadhaar-upload-area')?.classList.add('has-file');
+    }
   };
   reader.readAsDataURL(file);
 }
@@ -793,7 +869,14 @@ function handleFileUpload(input, type) {
 function removeFile(e, type) {
   e.stopPropagation();
   if (type === 'photo') { photoBase64 = null; const i = $('photo-input'); if (i) i.value = ''; hide('photo-preview'); show('photo-placeholder'); hide('remove-photo'); $('photo-upload-area')?.classList.remove('has-file'); }
-  else { aadhaarBase64 = null; const i = $('aadhaar-input'); if (i) i.value = ''; hide('aadhaar-preview'); show('aadhaar-placeholder'); hide('remove-aadhaar'); $('aadhaar-upload-area')?.classList.remove('has-file'); }
+  else {
+    aadhaarBase64 = null;
+    const i = $('aadhaar-input'); if (i) i.value = '';
+    const ph = $('aadhaar-placeholder');
+    if (ph) ph.innerHTML = '<span class="ul-emoji">📄</span><span class="ul-hint">Upload Aadhaar PDF · max 100KB</span>';
+    hide('remove-aadhaar');
+    $('aadhaar-upload-area')?.classList.remove('has-file');
+  }
 }
 
 async function submitRegistration() {
@@ -801,7 +884,7 @@ async function submitRegistration() {
   const phone = ($('reg-phone')?.value || '').replace(/\s/g, '');
   const aadhaar = ($('reg-aadhaar')?.value || '').replace(/\s/g, '');
   const agreed = $('reg-agree')?.checked;
-  if (!phone || !aadhaar || !agreed || !photoBase64 || !aadhaarBase64) { showErr('reg-error', 'Please fill all fields, upload both photos, and agree to rules.'); return; }
+  if (!phone || !aadhaar || !agreed || !photoBase64 || !aadhaarBase64) { showErr('reg-error', 'Please fill all fields, upload profile photo (image) + Aadhaar (PDF), and agree to rules.'); return; }
   if (phone.length < 10 || phone.length > 15) { showErr('reg-error', 'Enter a valid phone number (10–15 digits).'); return; }
   if (aadhaar.length !== 12 || !/^\d+$/.test(aadhaar)) { showErr('reg-error', 'Enter a valid 12-digit Aadhaar number.'); return; }
   const btn = $('reg-submit-btn');
