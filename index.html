@@ -16,6 +16,7 @@
 <div id="loading-screen">
   <div class="loader-logo">V</div>
   <div class="loader-ring"></div>
+  <span style="color: var(--t2); font-size: 13px; margin-top: 8px;">Ved Library</span>
 </div>
 
 <!-- ══ AUTH PAGE ══════════════════════════ -->
@@ -59,22 +60,23 @@
         </div>
         <div class="f-row">
           <div>
-            <label class="ul-lbl">Profile Photo<span class="req-tag">Required</span></label>
+            <label class="ul-lbl">Profile Photo<span class="req-tag">Required · Max 100KB</span></label>
             <div class="ul-box" id="photo-upload-area" onclick="document.getElementById('photo-input').click()">
-              <div id="photo-placeholder"><span class="ul-emoji">📷</span><span class="ul-hint">Click to upload · max 300KB</span></div>
+              <div id="photo-placeholder"><span class="ul-emoji">📷</span><span class="ul-hint">Click to upload · max 100KB</span></div>
               <img id="photo-preview" class="hidden" alt=""/>
               <button class="ul-rm hidden" id="remove-photo" onclick="removeFile(event,'photo')">×</button>
             </div>
-            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'photo')"/>
+            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'photo',100)"/>
           </div>
           <div>
-            <label class="ul-lbl">Aadhaar Photo<span class="req-tag">Required</span></label>
+            <label class="ul-lbl">Aadhaar Document<span class="req-tag">Required · PDF/Image · Max 100KB</span></label>
             <div class="ul-box" id="aadhaar-upload-area" onclick="document.getElementById('aadhaar-input').click()">
-              <div id="aadhaar-placeholder"><span class="ul-emoji">🪪</span><span class="ul-hint">Click to upload · max 300KB</span></div>
+              <div id="aadhaar-placeholder"><span class="ul-emoji">📄</span><span class="ul-hint">PDF or Image · max 100KB</span></div>
               <img id="aadhaar-preview" class="hidden" alt=""/>
+              <div id="aadhaar-pdf-name" class="hidden" style="font-size:11px; margin-top:4px;"></div>
               <button class="ul-rm hidden" id="remove-aadhaar" onclick="removeFile(event,'aadhaar')">×</button>
             </div>
-            <input type="file" id="aadhaar-input" accept="image/*" class="hidden" onchange="handleFileUpload(this,'aadhaar')"/>
+            <input type="file" id="aadhaar-input" accept="image/*,.pdf" class="hidden" onchange="handleFileUpload(this,'aadhaar',100)"/>
           </div>
         </div>
         <div class="rules-panel">
@@ -112,6 +114,7 @@
         <span id="nav-user-name"></span>
         <span class="chip-role" id="nav-user-role"></span>
       </span>
+      <a href="tel:+919876543210" class="contact-admin-btn" id="contact-admin-btn" style="display:none;">📞 Contact Admin</a>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Sign out</button>
     </div>
   </header>
