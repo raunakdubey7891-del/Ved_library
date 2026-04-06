@@ -1,12 +1,11 @@
 /* ═══════════════════════════════════════
-   VED LIBRARY — script.js  (v3.0 - FULL FEATURES)
+   VED LIBRARY — script.js  (v2.1 - FIXED)
 ═══════════════════════════════════════ */
 
 /* ── CONFIG ─────────────────────────── */
 const SUPABASE_URL      = 'https://dmolzoagnzjwtrdroqeg.supabase.co';
 const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtb2x6b2Fnbnpqd3RyZHJvcWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyODUxODEsImV4cCI6MjA5MDg2MTE4MX0.5Culb-inMvITeplysy6_BJJXngd_SPMWG13_hT0GV5w';
 const ADMIN_EMAIL       = 'raunakdubey7891@gmail.com';
-const ADMIN_PHONE       = '+919876543210';
 const LIBRARY_LAT       = 28.6139;
 const LIBRARY_LON       = 77.2090;
 const LIBRARY_RADIUS_KM = 0.5;
@@ -45,14 +44,11 @@ let allAttendance  = [];
 let allNotices     = [];
 let photoBase64    = null;
 let aadhaarBase64  = null;
-let aadhaarFileType = null;
 let adminChannel   = null;
 let initDone       = false;
-let autoAttendanceInterval = null;
 
 const STUDY_PLANS  = { full_time:'Full Time (12h)', shift_a:'Shift A (4h)', shift_b:'Shift B (4h)', custom:'Custom Shift' };
 const PLAN_PRICES  = { full_time:1200, shift_a:500, shift_b:500, custom:800 };
-const PLAN_HOURS   = { full_time:12, shift_a:4, shift_b:4, custom:8 };
 
 /* ── Safe helpers ────────────────────── */
 const $       = id  => document.getElementById(id);
@@ -103,7 +99,6 @@ async function init() {
       currentUser = null;
       currentProfile = null;
       initDone = false;
-      if (autoAttendanceInterval) clearInterval(autoAttendanceInterval);
       if (adminChannel) {
         db.removeChannel(adminChannel);
         adminChannel = null;
@@ -138,13 +133,6 @@ async function onSignIn(user) {
     currentProfile = profile;
     initDone = true;
     hide('loading-screen'); hide('auth-page');
-    
-    // Show contact admin button for students
-    if (profile.role === 'student') {
-      const contactBtn = document.getElementById('contact-admin-btn');
-      if (contactBtn) contactBtn.style.display = 'inline-flex';
-    }
-    
     if (profile.role === 'student' && !profile.registration_completed) { show('reg-page'); return; }
     launchApp();
   } catch (e) {
@@ -157,7 +145,6 @@ async function onSignIn(user) {
 }
 
 async function logout() {
-  if (autoAttendanceInterval) clearInterval(autoAttendanceInterval);
   try { await db.auth.signOut(); } catch(e) { console.error(e); }
   location.reload();
 }
@@ -176,42 +163,6 @@ $('google-login-btn').onclick = async () => {
 };
 
 /* ═══════════════════════════════════════
-   AUTO ATTENDANCE MARKING
-═══════════════════════════════════════ */
-async function markAbsentForMissing() {
-  const todayDate = today();
-  const currentHour = new Date().getHours();
-  
-  for (const student of allStudents) {
-    if (!student.plan_id || student.plan_id === 'custom') continue;
-    
-    const planHour = PLAN_HOURS[student.plan_id];
-    let shouldMark = false;
-    
-    if (student.plan_id === 'full_time') {
-      shouldMark = currentHour >= 20;
-    } else if (student.plan_id === 'shift_a') {
-      shouldMark = currentHour >= 12;
-    } else if (student.plan_id === 'shift_b') {
-      shouldMark = currentHour >= 20;
-    }
-    
-    if (shouldMark) {
-      const { data: existing } = await db.from('attendance').select('*').eq('uid', student.uid).eq('date', todayDate).maybeSingle();
-      if (!existing) {
-        await db.from('attendance').insert({ 
-          id: `${student.uid}_${todayDate}`, 
-          uid: student.uid, 
-          date: todayDate, 
-          timestamp: new Date().toISOString(), 
-          status: 'absent' 
-        });
-      }
-    }
-  }
-}
-
-/* ═══════════════════════════════════════
    APP LAUNCH
 ═══════════════════════════════════════ */
 function launchApp() {
@@ -225,9 +176,6 @@ function launchApp() {
   if (currentProfile.role === 'admin') {
     show('admin-dashboard');
     loadAdminData();
-    // Run auto attendance marking every hour
-    if (autoAttendanceInterval) clearInterval(autoAttendanceInterval);
-    autoAttendanceInterval = setInterval(() => { markAbsentForMissing(); }, 3600000);
   } else {
     show('student-dashboard');
     loadStudentData();
@@ -261,7 +209,7 @@ async function loadStudentData() {
     safeSet('days-next-month', Math.floor((nextMonth - new Date()) / 86400000) + ' Days');
 
     const { data: todayAttend } = await db.from('attendance').select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle();
-    updateAttendanceUI(!!todayAttend && todayAttend.status === 'present');
+    updateAttendanceUI(!!todayAttend);
 
     const { data: notices } = await db.from('notices').select('*').order('created_at', { ascending: false });
     allNotices = notices || [];
@@ -269,7 +217,7 @@ async function loadStudentData() {
 
     db.channel('student-rt')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `uid=eq.${currentUser.id}` }, async () => {
-        try { const { data } = await db.from('attendance').select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle(); updateAttendanceUI(!!data && data.status === 'present'); } catch (e) {}
+        try { const { data } = await db.from('attendance').select('*').eq('uid', currentUser.id).eq('date', today()).maybeSingle(); updateAttendanceUI(!!data); } catch (e) {}
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users', filter: `uid=eq.${currentUser.id}` }, async () => {
         try { const { data } = await db.from('users').select('*').eq('uid', currentUser.id).single(); if (data) { currentProfile = data; loadStudentData(); } } catch (e) {}
@@ -287,14 +235,14 @@ function updateAttendanceUI(marked) {
     if (!dot || !text || !btn) return;
     if (marked) {
       dot.className = 'status-dot dot-green';
-      text.textContent = 'Present ✓';
+      text.textContent = 'Marked';
       btn.textContent = '✓ Attendance Done';
       btn.disabled = true;
       btn.className = 'btn w-full';
       btn.style.cssText = 'background:rgba(16,185,129,.1);color:#6ee7b7;cursor:default;width:100%;justify-content:center;padding:10px;border-radius:8px;font-weight:600;display:flex;align-items:center;border:1px solid rgba(16,185,129,.15)';
     } else {
       dot.className = 'status-dot dot-amber';
-      text.textContent = 'Not Marked';
+      text.textContent = 'Pending';
       btn.textContent = "Mark Today's Attendance";
       btn.disabled = false;
       btn.className = 'btn btn-primary w-full';
@@ -309,7 +257,6 @@ async function markAttendance() {
     const loc = await getLocation();
     if (!isAtLibrary(loc.lat, loc.lon)) { showErr('student-location-error', 'You must be at the library to mark attendance.'); return; }
     await db.from('attendance').upsert({ id: `${currentUser.id}_${today()}`, uid: currentUser.id, date: today(), timestamp: new Date().toISOString(), status: 'present' });
-    alert('Attendance marked successfully!');
   } catch (e) { showErr('student-location-error', e.message || 'Location error. Please allow location access.'); }
 }
 
@@ -382,6 +329,7 @@ function renderAll() {
   try { renderStats(); } catch (e) {}
 }
 
+/* ── Students table ───────────────────── */
 function renderStudentTable() {
   const q = ($('student-search')?.value || '').toLowerCase();
   const list = allStudents.filter(s => !q || s.name?.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q) || s.seat_number?.toLowerCase().includes(q));
@@ -405,6 +353,7 @@ function renderStudentTable() {
   }).join('');
 }
 
+/* ── Seats ────────────────────────────── */
 function renderSeats() {
   const filter = $('seat-filter')?.value || 'all';
   const list = allSeats.filter(s => filter === 'all' || s.status === filter);
@@ -417,24 +366,24 @@ function renderSeats() {
   grid.innerHTML = list.map(seat => {
     const student = allStudents.find(s => s.uid === seat.occupied_by);
     const isOcc = seat.status === 'occupied';
-    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)} (${STUDY_PLANS[s.plan_id] || 'No plan'})</option>`).join('');
+    const opts = freeStudents.map(s => `<option value="${s.uid}">${esc(s.name)} (${esc(s.seat_number || 'No seat')})</option>`).join('');
     return `<div class="seat-card ${isOcc ? 'seat-occupied' : 'seat-available'}">
       <div class="s-card-top">
-        <span class="seat-number">${esc(seat.number)}</span>
-        <span class="seat-status ${isOcc ? 'status-occupied' : 'status-available'}">${isOcc ? 'Occupied' : 'Available'}</span>
+        <span class="seat-num ${isOcc ? 'seat-num-occupied' : 'seat-num-available'}">${esc(seat.number)}</span>
+        <div class="s-actions">
+          ${!isOcc ? 
+            `<select class="s-sel" onchange="assignSeat('${seat.id}',this.value)"><option value="" disabled selected>Assign Student</option>${opts}</select>` :
+            `<button class="btn btn-icon btn-reject" title="Free seat" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">✕</button>`
+          }
+          <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete Seat">🗑</button>
+        </div>
       </div>
-      <div class="s-actions">
-        ${!isOcc ? 
-          `<select class="s-sel" onchange="assignSeat('${seat.id}',this.value)"><option value="" disabled selected>Assign Student</option>${opts}</select>` :
-          `<button class="btn btn-icon btn-reject" title="Free seat" onclick="toggleSeat('${seat.id}','${seat.status}','${seat.occupied_by || ''}')">✕ Free</button>`
-        }
-        <button class="btn btn-icon btn-ghost" onclick="removeSeat('${seat.id}')" title="Delete Seat">🗑</button>
-      </div>
-      ${isOcc ? `<div class="seat-student">👤 ${esc(student?.name || 'Assigned')}</div><div class="seat-plan-badge">${esc(seat.plan_type || '—')}</div>` : ''}
+      ${isOcc ? `<div class="s-student">👤 ${esc(student?.name || 'Assigned')}</div><div class="s-plan">${esc(seat.plan_type || '—')}</div>` : ''}
     </div>`;
   }).join('');
 }
 
+/* ── Payments ─────────────────────────── */
 function renderPayments() {
   const el = $('payments-list');
   if (!el) return;
@@ -463,21 +412,22 @@ function paymentHTML(p, showActions) {
   </div>`;
 }
 
+/* ── Attendance ───────────────────────── */
 function renderAttendanceList() {
   const el = $('attendance-list');
   if (!el) return;
   if (!allAttendance.length) { el.innerHTML = '<div class="empty-text">No records yet.</div>'; return; }
-  el.innerHTML = allAttendance.slice(0, 100).map(a => {
+  el.innerHTML = allAttendance.map(a => {
     const s = allStudents.find(x => x.uid === a.uid);
-    const statusIcon = a.status === 'present' ? '✅' : a.status === 'absent' ? '❌' : '⏳';
     return `<div class="att-item">
       <div class="att-av">${esc((s?.name || '?').charAt(0))}</div>
-      <div style="flex:1"><div class="att-name">${esc(s?.name || 'Unknown')}</div><div class="att-time">${a.date} · ${fmtTime(a.timestamp)}</div></div>
-      <span style="font-size:14px;">${statusIcon} ${a.status || 'present'}</span>
+      <div style="flex:1"><div class="att-name">${esc(s?.name || 'Unknown')}</div><div class="att-time">${fmtTime(a.timestamp)}</div></div>
+      <span class="att-tick">✓</span>
     </div>`;
   }).join('');
 }
 
+/* ── Notices ──────────────────────────── */
 function renderNoticeList(elId, isAdmin) {
   const el = $(elId);
   if (!el) return;
@@ -489,9 +439,10 @@ function renderNoticeList(elId, isAdmin) {
   </div>`).join('');
 }
 
+/* ── Stats ────────────────────────────── */
 function renderStats() {
   safeSet('stat-students', allStudents.length);
-  safeSet('stat-today', allAttendance.filter(a => a.date === today() && a.status === 'present').length);
+  safeSet('stat-today', new Set(allAttendance.filter(a => a.date === today()).map(a => a.uid)).size);
   safeSet('stat-occupied', allSeats.filter(s => s.status === 'occupied').length);
   safeSet('stat-available', allSeats.filter(s => s.status === 'available').length);
   safeSet('stat-revenue', '₹' + allPayments.filter(p => p.status === 'verified').reduce((sum, p) => sum + p.amount, 0));
@@ -511,6 +462,7 @@ async function verifyPayment(id, status, uid) {
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
+/* ── Edit / Delete student ────────────── */
 function openEditModal(uid) {
   const s = allStudents.find(x => x.uid === uid);
   if (!s) return;
@@ -566,7 +518,7 @@ async function deleteStudent() {
   const uid = $('edit-uid')?.value;
   const s = allStudents.find(x => x.uid === uid);
   if (!s) return;
-  if (!confirm(`Remove "${s.name}" permanently?`)) return;
+  if (!confirm(`Remove "${s.name}" permanently?\n\nThis will:\n• Delete their account\n• Free their seat\n• Delete their attendance & payments\n\nThis cannot be undone.`)) return;
   try {
     const btn = $('delete-student-btn');
     if (btn) { btn.textContent = 'Removing…'; btn.disabled = true; }
@@ -585,6 +537,7 @@ async function deleteStudent() {
   }
 }
 
+/* ── Seats ────────────────────────────── */
 function showAddSeatModal() { const el = $('new-seat-num'); if (el) el.value = ''; show('add-seat-modal'); }
 async function addSeat() {
   try {
@@ -603,11 +556,12 @@ async function toggleSeat(id, currentStatus, occupiedBy) {
   try {
     const seat = allSeats.find(s => s.id === id);
     if (!seat) { alert('Seat not found'); return; }
+    
     if (currentStatus === 'available') {
       alert('Please use the dropdown to select a student for this seat');
       return;
     } else {
-      if (!confirm(`Free seat ${seat.number}?`)) return;
+      if (!confirm(`Free seat ${seat.number}? The student will lose their seat assignment.`)) return;
       await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', id);
       if (occupiedBy) { await db.from('users').update({ seat_number: null }).eq('uid', occupiedBy); }
     }
@@ -619,30 +573,65 @@ async function toggleSeat(id, currentStatus, occupiedBy) {
 
 async function assignSeat(seatId, studentUid) {
   try {
-    if (!seatId || !studentUid) { alert('Invalid selection'); return; }
+    if (!seatId || !studentUid) {
+      alert('Invalid seat or student selection');
+      return;
+    }
+    
     const student = allStudents.find(s => s.uid === studentUid);
     const seat = allSeats.find(s => s.id === seatId);
-    if (!student || !seat) { alert('Student or seat not found'); return; }
-    if (seat.status !== 'available') { alert(`Seat ${seat.number} is already occupied.`); return; }
-    if (!student.plan_id) { alert('Student must have a plan assigned first.'); return; }
     
-    await db.from('seats').update({ status: 'occupied', occupied_by: studentUid, plan_type: STUDY_PLANS[student.plan_id] }).eq('id', seatId);
-    await db.from('users').update({ seat_number: seat.number }).eq('uid', studentUid);
+    if (!student || !seat) {
+      alert('Student or seat not found');
+      return;
+    }
+    
+    if (seat.status !== 'available') {
+      alert(`Seat ${seat.number} is already occupied. Please select an available seat.`);
+      return;
+    }
+    
+    if (!seat.number || seat.number.trim() === '') {
+      alert('Invalid seat configuration. Please add a valid seat first.');
+      return;
+    }
+    
+    await db.from('seats').update({ 
+      status: 'occupied', 
+      occupied_by: studentUid, 
+      plan_type: STUDY_PLANS[student.plan_id] || 'N/A' 
+    }).eq('id', seatId);
+    
+    await db.from('users').update({ 
+      seat_number: seat.number 
+    }).eq('uid', studentUid);
     
     const prev = allSeats.find(s => s.number === student.seat_number && s.id !== seatId);
-    if (prev) { await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', prev.id); }
+    if (prev) {
+      await db.from('seats').update({ 
+        status: 'available', 
+        occupied_by: null, 
+        plan_type: null 
+      }).eq('id', prev.id);
+    }
     
     await Promise.all([fetchSeats(), fetchStudents()]);
     renderSeats();
     renderStudentTable();
-  } catch (e) { alert('Failed: ' + e.message); }
+    
+  } catch (e) { 
+    console.error('Assign seat error:', e);
+    alert('Failed to assign seat: ' + e.message); 
+  }
 }
 
 async function removeSeat(id) {
   if (!confirm('Delete this seat?')) return;
   try {
     const seat = allSeats.find(s => s.id === id);
-    if (seat?.occupied_by) { await db.from('users').update({ seat_number: null }).eq('uid', seat.occupied_by); }
+    if (seat?.occupied_by) {
+      await db.from('users').update({ seat_number: null }).eq('uid', seat.occupied_by);
+    }
     await db.from('seats').delete().eq('id', id);
     await Promise.all([fetchSeats(), fetchStudents()]);
     renderSeats();
@@ -650,6 +639,7 @@ async function removeSeat(id) {
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
+/* ── Notices ──────────────────────────── */
 function showAddNoticeModal() { const t = $('notice-title-input'), c = $('notice-content-input'); if (t) t.value = ''; if (c) c.value = ''; show('add-notice-modal'); }
 async function addNotice() {
   try {
@@ -673,6 +663,7 @@ async function deleteNotice(id) {
   } catch (e) { alert('Failed: ' + e.message); }
 }
 
+/* ── Tab switching ────────────────────── */
 function switchTab(event, tab) {
   document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
@@ -708,21 +699,61 @@ async function exportAllData() {
   if (btn) { btn.textContent = 'Exporting…'; btn.disabled = true; }
   try {
     const d = today();
-    downloadCSV(`VedLibrary_Students_${d}.csv`, [
-      ['Name', 'Email', 'Phone', 'Aadhaar', 'Seat', 'Plan', 'Expiry', 'Due'],
-      ...allStudents.map(s => [s.name, s.email, s.phone || '', s.aadhaar_number || '', s.seat_number || '', STUDY_PLANS[s.plan_id] || '', fmt(s.expiry_date), s.amount_due || 0])
+    const totalRev = allPayments.filter(p => p.status === 'verified').reduce((s, p) => s + p.amount, 0);
+    const totalDue = allStudents.reduce((s, x) => s + (x.amount_due || 0), 0);
+
+    downloadCSV(`VedLibrary_Export_${d}/00_Summary.csv`, [
+      ['Metric', 'Value'], ['Export Date', d], ['Total Students', allStudents.length],
+      ['Occupied Seats', allSeats.filter(s => s.status === 'occupied').length],
+      ['Available Seats', allSeats.filter(s => s.status === 'available').length],
+      ['Today Attendance', new Set(allAttendance.filter(a => a.date === today()).map(a => a.uid)).size],
+      ['Total Attendance Records', allAttendance.length],
+      ['Total Verified Revenue (₹)', totalRev], ['Total Amount Due (₹)', totalDue],
+      ['Total Payments', allPayments.length], ['Total Notices', allNotices.length]
     ]);
-    alert(`Export complete!`);
+    await delay(400);
+
+    downloadCSV(`VedLibrary_Export_${d}/01_Students.csv`, [
+      ['Name', 'Email', 'Phone', 'Aadhaar', 'Seat', 'Plan', 'Session Start', 'Expiry', 'Due', 'Registered', 'Joined'],
+      ...allStudents.map(s => [s.name, s.email, s.phone || '', s.aadhaar_number || '', s.seat_number || '', STUDY_PLANS[s.plan_id] || '', s.session_start ? fmt(s.session_start) : '', s.expiry_date ? fmt(s.expiry_date) : '', s.amount_due || 0, s.registration_completed ? 'Yes' : 'No', fmt(s.created_at)])
+    ]);
+    await delay(400);
+
+    downloadCSV(`VedLibrary_Export_${d}/02_Payments.csv`, [
+      ['Student', 'Email', 'Amount', 'UTR', 'Status', 'Date'],
+      ...allPayments.map(p => { const s = allStudents.find(x => x.uid === p.uid); return [s?.name || 'Unknown', s?.email || '', p.amount, p.transaction_id, p.status, fmtTime(p.timestamp)]; })
+    ]);
+    await delay(400);
+
+    downloadCSV(`VedLibrary_Export_${d}/03_Attendance.csv`, [
+      ['Student', 'Email', 'Date', 'Time', 'Status'],
+      ...allAttendance.map(a => { const s = allStudents.find(x => x.uid === a.uid); return [s?.name || 'Unknown', s?.email || '', a.date, a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : '', a.status]; })
+    ]);
+    await delay(400);
+
+    downloadCSV(`VedLibrary_Export_${d}/04_Seats.csv`, [
+      ['Seat No', 'Status', 'Student Name', 'Student Email', 'Plan'],
+      ...allSeats.map(seat => { const s = allStudents.find(x => x.uid === seat.occupied_by); return [seat.number, seat.status, s?.name || '', s?.email || '', seat.plan_type || '']; })
+    ]);
+    await delay(400);
+
+    downloadCSV(`VedLibrary_Export_${d}/05_Notices.csv`, [
+      ['Title', 'Content', 'Posted On'],
+      ...allNotices.map(n => [n.title, n.content, fmtTime(n.created_at)])
+    ]);
+
+    alert(`Export complete!\n\n6 CSV files downloaded.`);
   } catch (e) { alert('Export failed: ' + e.message); }
   finally { if (btn) { btn.textContent = 'Export All'; btn.disabled = false; } }
 }
 
+/* ── Documents download ───────────────── */
 async function downloadStudentDocs(uid) {
   const s = allStudents.find(x => x.uid === uid);
   if (!s?.photo_url && !s?.aadhaar_photo_url) { alert('No documents for this student.'); return; }
   const name = s.name.replace(/\s+/g, '_');
-  if (s.photo_url) { downloadBase64(s.photo_url, `${name}_photo.png`); }
-  if (s.aadhaar_photo_url) { await delay(300); downloadBase64(s.aadhaar_photo_url, `${name}_aadhaar`); }
+  if (s.photo_url)         { downloadBase64(s.photo_url, `VedLibrary_Docs/Student_Data/${name}/photo.png`); }
+  if (s.aadhaar_photo_url) { await delay(300); downloadBase64(s.aadhaar_photo_url, `VedLibrary_Docs/Student_Data/${name}/aadhaar.png`); }
 }
 
 async function downloadAllDocs() {
@@ -732,78 +763,37 @@ async function downloadAllDocs() {
   try {
     for (const s of allStudents) {
       const name = s.name.replace(/\s+/g, '_');
-      if (s.photo_url) { downloadBase64(s.photo_url, `${name}_photo.png`); count++; await delay(200); }
-      if (s.aadhaar_photo_url) { downloadBase64(s.aadhaar_photo_url, `${name}_aadhaar`); count++; await delay(200); }
+      if (s.photo_url)         { downloadBase64(s.photo_url, `VedLibrary_Docs/Student_Data/${name}/photo.png`); count++; await delay(200); }
+      if (s.aadhaar_photo_url) { downloadBase64(s.aadhaar_photo_url, `VedLibrary_Docs/Student_Data/${name}/aadhaar.png`); count++; await delay(200); }
     }
-    alert(`${count} file(s) downloaded.`);
+    if (!count) alert('No documents found.');
+    else alert(`${count} file(s) downloaded.`);
   } catch (e) { alert('Download failed: ' + e.message); }
   finally { if (btn) { btn.textContent = 'All Docs'; btn.disabled = false; } }
 }
 
-function downloadBase64(dataUrl, filename) { 
-  const a = document.createElement('a'); 
-  a.href = dataUrl; 
-  a.download = filename; 
-  a.click(); 
-}
+function downloadBase64(dataUrl, filename) { const a = document.createElement('a'); a.href = dataUrl; a.download = filename; a.click(); }
 
 /* ═══════════════════════════════════════
-   REGISTRATION with PDF support & 100KB limit
+   REGISTRATION
 ═══════════════════════════════════════ */
-function handleFileUpload(input, type, maxSizeKB = 100) {
+function handleFileUpload(input, type) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > maxSizeKB * 1024) { alert(`File too large. Max ${maxSizeKB}KB.`); input.value = ''; return; }
-  
+  if (file.size > 300 * 1024) { alert('File too large. Max 300KB.'); return; }
   const reader = new FileReader();
   reader.onloadend = () => {
     const b64 = reader.result;
-    if (type === 'photo') { 
-      photoBase64 = b64; 
-      const p = $('photo-preview'); 
-      if (p) { p.src = b64; p.classList.remove('hidden'); } 
-      hide('photo-placeholder'); 
-      show('remove-photo'); 
-      $('photo-upload-area')?.classList.add('has-file');
-    } else { 
-      aadhaarBase64 = b64;
-      aadhaarFileType = file.type;
-      if (file.type === 'application/pdf') {
-        const pdfName = $('aadhaar-pdf-name');
-        if (pdfName) { pdfName.textContent = `📄 ${file.name}`; pdfName.classList.remove('hidden'); }
-        hide('aadhaar-preview');
-      } else {
-        const p = $('aadhaar-preview');
-        if (p) { p.src = b64; p.classList.remove('hidden'); }
-        hide('aadhaar-pdf-name');
-      }
-      hide('aadhaar-placeholder'); 
-      show('remove-aadhaar'); 
-      $('aadhaar-upload-area')?.classList.add('has-file');
-    }
+    if (type === 'photo') { photoBase64 = b64; const p = $('photo-preview'); if (p) { p.src = b64; } show('photo-preview'); hide('photo-placeholder'); show('remove-photo'); $('photo-upload-area')?.classList.add('has-file'); }
+    else { aadhaarBase64 = b64; const p = $('aadhaar-preview'); if (p) { p.src = b64; } show('aadhaar-preview'); hide('aadhaar-placeholder'); show('remove-aadhaar'); $('aadhaar-upload-area')?.classList.add('has-file'); }
   };
   reader.readAsDataURL(file);
 }
 
 function removeFile(e, type) {
   e.stopPropagation();
-  if (type === 'photo') { 
-    photoBase64 = null; 
-    const i = $('photo-input'); if (i) i.value = ''; 
-    hide('photo-preview'); 
-    show('photo-placeholder'); 
-    hide('remove-photo'); 
-    $('photo-upload-area')?.classList.remove('has-file');
-  } else { 
-    aadhaarBase64 = null; 
-    aadhaarFileType = null;
-    const i = $('aadhaar-input'); if (i) i.value = ''; 
-    hide('aadhaar-preview'); 
-    hide('aadhaar-pdf-name');
-    show('aadhaar-placeholder'); 
-    hide('remove-aadhaar'); 
-    $('aadhaar-upload-area')?.classList.remove('has-file');
-  }
+  if (type === 'photo') { photoBase64 = null; const i = $('photo-input'); if (i) i.value = ''; hide('photo-preview'); show('photo-placeholder'); hide('remove-photo'); $('photo-upload-area')?.classList.remove('has-file'); }
+  else { aadhaarBase64 = null; const i = $('aadhaar-input'); if (i) i.value = ''; hide('aadhaar-preview'); show('aadhaar-placeholder'); hide('remove-aadhaar'); $('aadhaar-upload-area')?.classList.remove('has-file'); }
 }
 
 async function submitRegistration() {
@@ -811,17 +801,13 @@ async function submitRegistration() {
   const phone = ($('reg-phone')?.value || '').replace(/\s/g, '');
   const aadhaar = ($('reg-aadhaar')?.value || '').replace(/\s/g, '');
   const agreed = $('reg-agree')?.checked;
-  if (!phone || !aadhaar || !agreed || !photoBase64 || !aadhaarBase64) { showErr('reg-error', 'Please fill all fields, upload both documents, and agree to rules.'); return; }
+  if (!phone || !aadhaar || !agreed || !photoBase64 || !aadhaarBase64) { showErr('reg-error', 'Please fill all fields, upload both photos, and agree to rules.'); return; }
   if (phone.length < 10 || phone.length > 15) { showErr('reg-error', 'Enter a valid phone number (10–15 digits).'); return; }
   if (aadhaar.length !== 12 || !/^\d+$/.test(aadhaar)) { showErr('reg-error', 'Enter a valid 12-digit Aadhaar number.'); return; }
   const btn = $('reg-submit-btn');
   if (btn) { btn.textContent = 'Completing…'; btn.disabled = true; }
   try {
-    const { error } = await db.from('users').update({ 
-      phone, aadhaar_number: aadhaar, registration_completed: true, 
-      agreed_to_rules: true, photo_url: photoBase64, aadhaar_photo_url: aadhaarBase64,
-      aadhaar_file_type: aadhaarFileType
-    }).eq('uid', currentUser.id);
+    const { error } = await db.from('users').update({ phone, aadhaar_number: aadhaar, registration_completed: true, agreed_to_rules: true, photo_url: photoBase64, aadhaar_photo_url: aadhaarBase64 }).eq('uid', currentUser.id);
     if (error) throw error;
     const { data } = await db.from('users').select('*').eq('uid', currentUser.id).single();
     currentProfile = data; hide('reg-page'); launchApp();
@@ -831,6 +817,7 @@ async function submitRegistration() {
 
 function showErr(id, msg) { const el = $(id); if (el) { el.textContent = msg; el.classList.remove('hidden'); } }
 
+/* ── Modals ───────────────────────────── */
 function closeModal(id) { hide(id); }
 document.querySelectorAll('.overlay').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) hide(el.id); });
