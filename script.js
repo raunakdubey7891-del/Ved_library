@@ -8,7 +8,7 @@ const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ADMIN_EMAIL       = 'raunakdubey7891@gmail.com';
 const LIBRARY_LAT       = 28.6139;
 const LIBRARY_LON       = 77.2090;
-const LIBRARY_RADIUS_KM = 0.5;
+const LIBRARY_RADIUS_KM = 0.2;
 
 /* ── Supabase client ─────────────────── */
 const { createClient } = supabase;
