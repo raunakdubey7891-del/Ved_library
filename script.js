@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════
-   VED LIBRARY — script.js  (v2.0)
+   VED LIBRARY — script.js  (v2.1 - FIXED REFRESH)
 ═══════════════════════════════════════ */
 
 /* ── CONFIG ─────────────────────────── */
@@ -62,16 +62,16 @@ const safeSet = (id,val) => { const el=$(id); if(el) el.textContent=val; };
 const esc     = s   => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 /* ═══════════════════════════════════════
-   AUTH — Fixed to prevent blank screen
+   AUTH — Fixed refresh issue for Vercel
 ═══════════════════════════════════════ */
 async function init() {
-  // Ensure loading screen is visible
+  // Show loading screen, hide everything else
   show('loading-screen');
   hide('auth-page');
   hide('app');
   hide('reg-page');
 
-  // Handle URL errors first (bad oauth state etc)
+  // Handle URL errors first
   if (window.location.search.includes('error')) {
     history.replaceState(null, '', window.location.pathname);
     hide('loading-screen');
@@ -79,49 +79,45 @@ async function init() {
     return;
   }
 
-  // Set up auth listener
-  // The ONLY reliable way to handle all cases including refresh:
-  // Listen to onAuthStateChange FIRST, then call getSession()
-  // This ensures INITIAL_SESSION event (fired by getSession) is caught
+  try {
+    // CRITICAL FIX: Directly check for existing session FIRST
+    // This is faster and more reliable than waiting for onAuthStateChange
+    const { data: { session }, error } = await db.auth.getSession();
 
-  let sessionHandled = false;
+    if (error) throw error;
 
-  db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-      if (session?.user) {
-        // User is logged in (covers refresh, new login, token refresh)
-        sessionHandled = true;
-        await onSignIn(session.user);
-      } else if (event === 'INITIAL_SESSION') {
-        // Initial session finished, no user found — show login
-        sessionHandled = true;
-        hide('loading-screen');
-        show('auth-page');
-      }
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null; currentProfile = null; initDone = false;
-      if (adminChannel) { db.removeChannel(adminChannel); adminChannel = null; }
-      hide('app'); hide('reg-page'); hide('loading-screen');
+    if (session?.user) {
+      // User is already logged in (e.g., after a refresh)
+      await onSignIn(session.user);
+    } else {
+      // No user found, show the login page
+      hide('loading-screen');
       show('auth-page');
     }
-  });
-
-  // Trigger the INITIAL_SESSION event by calling getSession
-  try {
-    await db.auth.getSession();
-  } catch (e) {
-    console.error('getSession error:', e);
+  } catch (err) {
+    console.error('Session check error:', err);
     hide('loading-screen');
     show('auth-page');
   }
 
-  // Safety net — if nothing handled in 6s, show login
-  setTimeout(() => {
-    if (!sessionHandled) {
-      hide('loading-screen');
+  // Set up listener for future auth changes (login/logout in other tabs)
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user) {
+      await onSignIn(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      // Reset state and show login page
+      currentUser = null;
+      currentProfile = null;
+      initDone = false;
+      if (adminChannel) {
+        db.removeChannel(adminChannel);
+        adminChannel = null;
+      }
+      hide('app');
+      hide('reg-page');
       show('auth-page');
     }
-  }, 6000);
+  });
 }
 
 async function onSignIn(user) {
