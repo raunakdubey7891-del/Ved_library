@@ -8,7 +8,7 @@ const SUPABASE_ANON     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ADMIN_EMAIL       = 'raunakdubey7891@gmail.com';
 const LIBRARY_LAT       = 28.6139;
 const LIBRARY_LON       = 77.2090;
-const LIBRARY_RADIUS_KM = 0.2;
+const LIBRARY_RADIUS_KM = 0.5;
 
 /* ── Supabase client ─────────────────── */
 const { createClient } = supabase;
@@ -571,75 +571,24 @@ async function saveStudentEdit() {
 
 async function deleteStudent() {
   const uid = $('edit-uid')?.value;
-  if (!uid) {
-    alert("Cannot find student ID");
-    return;
-  }
-
-  const student = allStudents.find(s => s.uid === uid);
-  if (!student) {
-    alert("Student not found");
-    return;
-  }
-
-  const confirmMsg = `Remove student "${student.name}" permanently?\n\nThis will:\n• Delete their account\n• Free their seat (if assigned)\n• Delete their attendance & payment records\n\nThis action cannot be undone.`;
-
-  if (!confirm(confirmMsg)) return;
-
-  // Disable button during operation
-  const deleteBtn = $('delete-student-btn');
-  const originalText = deleteBtn ? deleteBtn.textContent : 'Remove Student';
-  if (deleteBtn) {
-    deleteBtn.textContent = 'Removing...';
-    deleteBtn.disabled = true;
-  }
-
+  const s = allStudents.find(x => x.uid === uid);
+  if (!s) return;
+  if (!confirm(`Remove "${s.name}" permanently?\n\nThis will:\n• Delete their account\n• Free their seat\n• Delete their attendance & payments\n\nThis cannot be undone.`)) return;
   try {
-    // Step 1: Free the seat if assigned
-    if (student.seat_number) {
-      const seat = allSeats.find(s => s.number === student.seat_number);
-      if (seat) {
-        await db.from('seats').update({
-          status: 'available',
-          occupied_by: null,
-          plan_type: null
-        }).eq('id', seat.id);
-      }
-    }
-
-    // Step 2: Delete related records
-    await Promise.all([
-      db.from('attendance').delete().eq('uid', uid),
-      db.from('payments').delete().eq('uid', uid)
-    ]);
-
-    // Step 3: Delete the user
-    const { error } = await db.from('users').delete().eq('uid', uid);
-    if (error) throw error;
-
-    // Step 4: Refresh data
-    await Promise.all([
-      fetchStudents(),
-      fetchSeats(),
-      fetchPayments(),
-      fetchAttendance()
-    ]);
-
+    const btn = $('delete-student-btn');
+    if (btn) { btn.textContent = 'Removing…'; btn.disabled = true; }
+    if (s.seat_number) { const seat = allSeats.find(x => x.number === s.seat_number); if (seat) await db.from('seats').update({ status: 'available', occupied_by: null, plan_type: null }).eq('id', seat.id); }
+    await db.from('attendance').delete().eq('uid', uid);
+    await db.from('payments').delete().eq('uid', uid);
+    await db.from('users').delete().eq('uid', uid);
+    await Promise.all([fetchStudents(), fetchSeats(), fetchPayments(), fetchAttendance()]);
     renderAll();
-
     closeModal('edit-student-modal');
-
-    alert(`Student "${student.name}" has been successfully removed.`);
-
-  } catch (err) {
-    console.error('Delete error:', err);
-    alert('Failed to remove student: ' + (err.message || 'Unknown error'));
-  } finally {
-    // Restore button
-    if (deleteBtn) {
-      deleteBtn.textContent = originalText;
-      deleteBtn.disabled = false;
-    }
+    alert(`${s.name} has been removed.`);
+  } catch (e) {
+    alert('Failed to remove student: ' + e.message);
+    const btn = $('delete-student-btn');
+    if (btn) { btn.textContent = 'Remove Student'; btn.disabled = false; }
   }
 }
 
