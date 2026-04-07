@@ -3,10 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<meta name="theme-color" content="#0d0d14"/>
+<meta name="theme-color" content="#080c14"/>
 <title>Ved Library</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link rel="stylesheet" href="style.css"/>
 </head>
@@ -27,12 +25,12 @@
     <div class="auth-card">
       <div class="auth-logo">V</div>
       <h1 class="auth-title">Ved Library</h1>
-      <p class="auth-sub">Your reading space, managed smartly</p>
+      <p class="auth-sub">Your smart reading space — track, manage, grow</p>
       <button id="google-login-btn" class="g-btn">
         <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.658 14.013 17.64 11.705 17.64 9.2z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
         <span id="google-btn-text">Continue with Google</span>
       </button>
-      <p class="auth-hint">New students are registered automatically on first login</p>
+      <p class="auth-hint">Students are registered automatically on first login</p>
     </div>
   </div>
 </div>
@@ -43,9 +41,9 @@
     <div class="reg-wrap">
       <div class="reg-card">
         <div class="reg-head">
-          <div class="reg-head-icon">🛡</div>
+          <div class="reg-head-icon">🛡️</div>
           <h2>Complete Registration</h2>
-          <p>Fill in your details to activate your account</p>
+          <p>Fill in your details to activate your library account</p>
         </div>
         <div class="reg-body">
           <div id="reg-error" class="err-msg hidden"></div>
@@ -151,20 +149,24 @@
             <div style="text-align:right"><p class="subs-lbl">Next month in</p><p class="subs-num2" id="days-next-month">—</p></div>
           </div>
           <div class="prog"><div class="prog-fill" id="subscription-progress" style="width:0%"></div></div>
-          <p class="hint-txt" id="expiry-text">Expiry: Not set</p>
+          <p class="hint-txt" id="expiry-text">Expiry: —</p>
         </div>
 
-        <!-- Payment -->
-        <div class="card">
+        <!-- Amount due -->
+        <div class="card" style="display:flex;flex-direction:column">
           <p class="card-lbl">Amount Due</p>
-          <p class="due-hero" id="amount-due">₹0</p>
-          <p class="hint-txt" id="due-date-text"></p>
-          <div class="divider"></div>
-          <button class="btn btn-pay btn-full" onclick="showPaymentModal()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <div class="due-amt" id="amount-due">₹0</div>
+          <p class="due-lbl">Monthly library fee</p>
+          <p class="due-date" id="due-date-text"></p>
+          <button class="btn btn-primary btn-full" onclick="showPaymentModal()">
             Pay via UPI
           </button>
         </div>
+      </div>
+
+      <!-- Monthly Attendance Graph -->
+      <div id="attendance-graph-wrap">
+        <!-- Rendered by JS -->
       </div>
 
       <!-- Contact Admin -->
@@ -196,6 +198,7 @@
 
       <div class="tab-bar">
         <button class="tab active" onclick="switchTab(event,'students')">Students</button>
+        <button class="tab" onclick="switchTab(event,'daily')">Daily Data</button>
         <button class="tab" onclick="switchTab(event,'seats')">Seats</button>
         <button class="tab" onclick="switchTab(event,'payments')">Payments</button>
         <button class="tab" onclick="switchTab(event,'attendance')">Attendance</button>
@@ -203,14 +206,32 @@
         <button class="tab" onclick="switchTab(event,'stats')">Stats</button>
       </div>
 
+      <!-- Students tab -->
       <div id="tab-students" class="tab-pane active">
-        <div style="margin-bottom:12px"><input class="search-inp" id="student-search" placeholder="Search name, email or seat…" oninput="renderStudentTable()"/></div>
+        <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <input class="search-inp" id="student-search" placeholder="Search name, email or seat…" oninput="renderStudentTable()" style="flex:1;min-width:200px"/>
+        </div>
+        <div class="sort-toolbar">
+          <span style="font-size:12px;color:var(--t2);font-weight:600">Sort by:</span>
+          <button class="sort-btn active" id="sort-status" onclick="setSortField('status')">● Status</button>
+          <button class="sort-btn" id="sort-name" onclick="setSortField('name')">Name</button>
+          <button class="sort-btn" id="sort-expiry" onclick="setSortField('expiry')">Expiry</button>
+          <button class="sort-btn" id="sort-due" onclick="setSortField('due')">Amount Due</button>
+        </div>
         <div class="card no-pad"><div class="tbl-wrap"><table class="tbl">
-          <thead><tr><th>Student</th><th>Seat</th><th>Plan</th><th>Session</th><th>Expiry</th><th>Due</th><th></th></tr></thead>
+          <thead><tr><th>Student</th><th>Seat</th><th>Plan</th><th>Session</th><th>Expiry</th><th>Due</th><th>Status</th><th></th></tr></thead>
           <tbody id="students-tbody"></tbody>
         </table></div></div>
       </div>
 
+      <!-- Daily Data tab -->
+      <div id="tab-daily" class="tab-pane">
+        <div id="day-panel-wrap">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- Seats tab -->
       <div id="tab-seats" class="tab-pane">
         <div class="plan-legend">
           <span class="legend-item"><span class="legend-dot ft"></span>Full Time</span>
@@ -230,23 +251,29 @@
         <div class="seat-grid" id="seats-grid"></div>
       </div>
 
+      <!-- Payments tab -->
       <div id="tab-payments" class="tab-pane">
-        <div class="card"><div id="payments-list"><p class="empty-text">Loading…</p></div></div>
+        <div class="card no-pad"><div id="payments-list"><p class="empty-text">Loading…</p></div></div>
       </div>
 
+      <!-- Attendance tab -->
       <div id="tab-attendance" class="tab-pane">
         <div class="card"><p class="card-lbl" style="margin-bottom:14px">Recent Attendance</p><div id="attendance-list" class="scroll-list"><p class="empty-text">No records yet</p></div></div>
       </div>
 
+      <!-- Notices tab -->
       <div id="tab-notices" class="tab-pane">
         <div class="section-row"><h2 class="section-ttl">Notices</h2><button class="btn btn-primary btn-sm" onclick="showAddNoticeModal()">+ Post</button></div>
         <div id="admin-notices-list"></div>
       </div>
 
+      <!-- Stats tab -->
       <div id="tab-stats" class="tab-pane">
         <div class="stats-grid">
           <div class="stat-card s-purple"><p class="s-lbl">Total Students</p><p class="s-val" id="stat-students">0</p></div>
-          <div class="stat-card s-blue"><p class="s-lbl">Active Today</p><p class="s-val" id="stat-today">0</p></div>
+          <div class="stat-card s-teal"><p class="s-lbl">Active Students</p><p class="s-val" id="stat-active-students">0</p></div>
+          <div class="stat-card s-red"><p class="s-lbl">Inactive Students</p><p class="s-val" id="stat-inactive-students">0</p></div>
+          <div class="stat-card s-blue"><p class="s-lbl">Present Today</p><p class="s-val" id="stat-today">0</p></div>
           <div class="stat-card s-amber"><p class="s-lbl">Seats Occupied</p><p class="s-val" id="stat-occupied">0</p></div>
           <div class="stat-card s-teal"><p class="s-lbl">Seats Free</p><p class="s-val" id="stat-available">0</p></div>
           <div class="stat-card s-green span2"><p class="s-lbl">Verified Revenue</p><p class="s-val" id="stat-revenue">₹0</p></div>
@@ -259,7 +286,8 @@
 
 <!-- MODALS -->
 <div class="overlay hidden" id="payment-modal">
-  <div class="modal"><div class="modal-hd"><h3>Pay via UPI</h3><button class="close-x" onclick="closeModal('payment-modal')">×</button></div>
+  <div class="modal">
+    <div class="modal-hd"><h3>Pay via UPI</h3><button class="close-x" onclick="closeModal('payment-modal')">×</button></div>
     <p class="modal-sub" id="payment-modal-desc"></p>
     <div class="qr-box"><img id="payment-qr" src="" alt="QR"/></div>
     <p class="upi-lbl">UPI ID</p><p class="upi-val">raunakdubey7891@ybl</p>
@@ -271,7 +299,8 @@
 </div>
 
 <div class="overlay hidden" id="edit-student-modal">
-  <div class="modal"><div class="modal-hd"><h3>Edit Student</h3><button class="close-x" onclick="closeModal('edit-student-modal')">×</button></div>
+  <div class="modal">
+    <div class="modal-hd"><h3>Edit Student</h3><button class="close-x" onclick="closeModal('edit-student-modal')">×</button></div>
     <div class="fg"><label>Name</label><input id="edit-name" disabled/></div>
     <div class="two-col">
       <div class="fg"><label>Phone</label><input id="edit-phone" disabled/></div>
@@ -299,14 +328,16 @@
 </div>
 
 <div class="overlay hidden" id="add-seat-modal">
-  <div class="modal modal-sm"><div class="modal-hd"><h3>Add Seat</h3><button class="close-x" onclick="closeModal('add-seat-modal')">×</button></div>
+  <div class="modal modal-sm">
+    <div class="modal-hd"><h3>Add Seat</h3><button class="close-x" onclick="closeModal('add-seat-modal')">×</button></div>
     <div class="fg"><label>Seat Number / Label</label><input id="new-seat-num" placeholder="e.g. A1, 15, B3"/></div>
     <button class="btn btn-primary btn-full" onclick="addSeat()">Add Seat</button>
   </div>
 </div>
 
 <div class="overlay hidden" id="add-notice-modal">
-  <div class="modal"><div class="modal-hd"><h3>Post Notice</h3><button class="close-x" onclick="closeModal('add-notice-modal')">×</button></div>
+  <div class="modal">
+    <div class="modal-hd"><h3>Post Notice</h3><button class="close-x" onclick="closeModal('add-notice-modal')">×</button></div>
     <div class="fg"><label>Title</label><input id="notice-title-input" placeholder="Notice title…"/></div>
     <div class="fg"><label>Content</label><textarea id="notice-content-input" rows="5" placeholder="Write content…"></textarea></div>
     <button class="btn btn-primary btn-full" onclick="addNotice()">Publish</button>
